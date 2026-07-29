@@ -50,11 +50,12 @@ export default function ProductDetail() {
       });
   }, [id]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
     setSubmitting(true);
-    const { error } = await supabase.from('orders').insert({
+
+    const orderPayload = {
       product_id: product.id,
       product_title: product.title,
       product_price: product.price,
@@ -66,9 +67,15 @@ export default function ProductDetail() {
       street: form.street || null,
       notes: form.notes || null,
       status: 'pending',
-    });
+    };
+
+    // Insert into Supabase (The database trigger will automatically fire the email)
+    const { error } = await supabase.from('orders').insert(orderPayload);
+    console.log('orderPayload')
     setSubmitting(false);
+
     if (error) {
+      console.error('Supabase Insert Error:', error);
       notify('Could not place your order. Please try again.', 'error');
     } else {
       setOrdered(true);

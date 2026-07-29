@@ -263,13 +263,13 @@ function ProductModal({
     setUploading(true);
     const ext = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await supabase.storage.from('product-images').upload(fileName, file, { cacheControl: '3600', upsert: false });
+    const { error } = await supabase.storage.from('image').upload(fileName, file, { cacheControl: '3600', upsert: false });
     setUploading(false);
     if (error) {
       notify('Could not upload image.', 'error');
       return;
     }
-    const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName);
+    const { data: urlData } = supabase.storage.from('image').getPublicUrl(fileName);
     setImageUrl(urlData.publicUrl);
     notify('Image uploaded.');
   };

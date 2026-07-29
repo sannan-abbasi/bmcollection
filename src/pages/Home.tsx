@@ -166,6 +166,37 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Featured Video Showcase Section */}
+      <section className="relative py-28 px-6 bg-ink overflow-hidden">
+        <div className="absolute inset-0 opacity-40 mix-blend-overlay pointer-events-none">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="h-full w-full object-cover"
+          >
+            {/* Place your video file inside the public folder (e.g. /public/promo.mp4) or paste a direct storage link */}
+            <source src="/promo.mp4" type="video/mp4" />
+          </video>
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-ink" />
+
+        <div className="relative z-10 mx-auto max-w-4xl text-center">
+          <p className="text-xs uppercase tracking-[0.4em] text-gold mb-4">Cinematic Experience</p>
+          <h2 className="font-serif text-4xl md:text-6xl text-cream mb-6">The Art of Refinement</h2>
+          <p className="text-cream/70 text-lg leading-relaxed max-w-2xl mx-auto mb-10">
+            Witness our pieces come to life. Designed to capture light, command presence, and elevate your everyday wardrobe.
+          </p>
+          <Link
+            to="/shop/jewellery"
+            className="inline-flex items-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-all duration-300"
+          >
+            Shop The Look <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
       {/* Brand Story */}
       <section className="py-24 px-6">
         <div className="mx-auto max-w-4xl text-center">

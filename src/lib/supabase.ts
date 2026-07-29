@@ -14,7 +14,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-export const ADMIN_EMAIL = 'binteakram224@gmail.com';
+export const ADMIN_EMAIL = 'sannanabbasi025@gmail.com';
 
 export const BRAND = {
   name: 'BM Collection',
