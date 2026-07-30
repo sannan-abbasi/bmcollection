@@ -5,6 +5,7 @@ import type { Product } from '@/lib/types';
 import { formatPrice } from '@/components/ProductCard';
 import { useToast } from '@/lib/toast';
 import { ArrowLeft, Check, MessageCircle, Sparkles } from 'lucide-react';
+import ProductReviews from '@/components/ProductReviews';
 
 interface OrderForm {
   customer_name: string;
@@ -50,7 +51,7 @@ export default function ProductDetail() {
       });
   }, [id]);
 
-const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
     setSubmitting(true);
@@ -69,9 +70,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       status: 'pending',
     };
 
-    // Insert into Supabase (The database trigger will automatically fire the email)
     const { error } = await supabase.from('orders').insert(orderPayload);
-    console.log('orderPayload')
     setSubmitting(false);
 
     if (error) {
@@ -302,6 +301,9 @@ const handleSubmit = async (e: React.FormEvent) => {
             )}
           </div>
         </div>
+
+        {/* Customer Reviews Section Added Here */}
+        <ProductReviews productId={product.id} />
       </div>
     </div>
   );
