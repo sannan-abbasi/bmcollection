@@ -6,6 +6,7 @@ import { formatPrice } from '@/components/ProductCard';
 import { useToast } from '@/lib/toast';
 import { ArrowLeft, Check, MessageCircle, Sparkles } from 'lucide-react';
 import ProductReviews from '@/components/ProductReviews';
+import emailjs from '@emailjs/browser';
 
 interface OrderForm {
   customer_name: string;
@@ -70,7 +71,7 @@ export default function ProductDetail() {
       status: 'pending',
     };
 
-    const { error } = await supabase.from('orders').insert(orderPayload);
+    const { error } = await supabase.from('orders').insert(orderPayload).select().single();
     setSubmitting(false);
 
     if (error) {
@@ -79,6 +80,24 @@ export default function ProductDetail() {
     } else {
       setOrdered(true);
       notify('Order placed successfully! We will contact you shortly.', 'success');
+
+      // Send instant email notification to admin via EmailJS
+      emailjs.send(
+        'service_mvfviau',
+        'template_krdl205',
+        {
+          product_title: product.title,
+          product_price: formatPrice(product.price),
+          customer_name: form.customer_name,
+          phone: form.phone,
+          email: form.email,
+          city: form.city,
+          address: form.address,
+          street: form.street || 'None',
+          notes: form.notes || 'None',
+        },
+        '8qobEve1uR8ockQxe'
+      ).catch((err) => console.error('Email alert failed:', err));
     }
   };
 
@@ -124,14 +143,6 @@ export default function ProductDetail() {
             <Link to="/" className="text-sm uppercase tracking-widest border border-stone-300 px-6 py-3 hover:border-gold hover:text-gold transition-all">
               Continue Shopping
             </Link>
-            <a
-              href={`${BRAND.whatsappLink}?text=${encodeURIComponent(`Hi, I just placed an order for ${product.title} (${formatPrice(product.price)}). My name is ${form.customer_name}.`)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center gap-2 text-sm uppercase tracking-widest bg-gold text-cream px-6 py-3 hover:bg-gold-dark transition-all"
-            >
-              <MessageCircle className="h-4 w-4" /> Confirm on WhatsApp
-            </a>
           </div>
         </div>
       </div>
@@ -183,9 +194,6 @@ export default function ProductDetail() {
               <div className="flex items-center gap-3">
                 <Check className="h-4 w-4 text-gold" /> Cash on delivery available
               </div>
-              <div className="flex items-center gap-3">
-                <Check className="h-4 w-4 text-gold" /> Order via WhatsApp for quick confirmation
-              </div>
             </div>
 
             {!showOrder ? (
@@ -202,7 +210,7 @@ export default function ProductDetail() {
                   rel="noreferrer"
                   className="flex items-center justify-center gap-2 border border-stone-300 text-ink px-8 py-4 text-sm uppercase tracking-widest hover:border-gold hover:text-gold transition-all duration-300"
                 >
-                  <MessageCircle className="h-4 w-4" /> WhatsApp
+                  <MessageCircle className="h-4 w-4" /> WhatsApp Inquiry
                 </a>
               </div>
             ) : (
@@ -302,7 +310,7 @@ export default function ProductDetail() {
           </div>
         </div>
 
-        {/* Customer Reviews Section Added Here */}
+        {/* Customer Reviews Section */}
         <ProductReviews productId={product.id} />
       </div>
     </div>

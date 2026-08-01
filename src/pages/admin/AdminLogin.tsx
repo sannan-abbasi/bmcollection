@@ -1,14 +1,11 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/lib/auth';
+import { Link } from 'react-router-dom';
 import { useToast } from '@/lib/toast';
 import { supabase, ADMIN_EMAIL } from '@/lib/supabase';
 import { Lock, ArrowLeft, UserPlus } from 'lucide-react';
 
 export default function AdminLogin() {
-  const { signIn } = useAuth();
   const { notify } = useToast();
-  const navigate = useNavigate();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,30 +15,47 @@ export default function AdminLogin() {
     e.preventDefault();
     setLoading(true);
 
-    if (mode === 'signup') {
-      if (email !== ADMIN_EMAIL) {
+    try {
+      if (mode === 'signup') {
+        if (email.trim().toLowerCase() !== ADMIN_EMAIL.trim().toLowerCase()) {
+          setLoading(false);
+          notify('This admin panel is restricted. Only the authorized admin email can register.', 'error');
+          return;
+        }
+
+        const { error } = await supabase.auth.signUp({ email, password });
         setLoading(false);
-        notify('This admin panel is restricted. Only the authorized admin email can register.', 'error');
+        
+        if (error) {
+          notify(error.message, 'error');
+        } else {
+          notify('Account created successfully. You can now sign in.', 'success');
+          setMode('signin');
+        }
         return;
       }
-      const { error } = await supabase.auth.signUp({ email, password });
-      setLoading(false);
-      if (error) {
-        notify(error.message, 'error');
-      } else {
-        notify('Account created. You can now sign in.', 'success');
-        setMode('signin');
-      }
-      return;
-    }
 
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) {
-      notify('Invalid credentials. Please try again.', 'error');
-    } else {
-      notify('Welcome back, admin.', 'success');
-      navigate('/admin/dashboard');
+      // Sign In Flow
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (error) {
+        setLoading(false);
+        notify(error.message || 'Invalid credentials. Please try again.', 'error');
+        return;
+      }
+
+      if (data?.session) {
+        notify('Welcome back, admin.', 'success');
+        // Force a clean redirect to the admin dashboard route
+        window.location.href = '/admin/dashboard';
+      } else {
+        setLoading(false);
+        notify('Login succeeded, but no session was returned.', 'error');
+      }
+    } catch (err: any) {
+      setLoading(false);
+      console.error('Unexpected login error:', err);
+      notify('An unexpected error occurred. Check console for details.', 'error');
     }
   };
 
