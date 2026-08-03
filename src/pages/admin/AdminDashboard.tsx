@@ -7,7 +7,7 @@ import type { Category, Product, Order, OrderStatus } from '@/lib/types';
 import { ORDER_STATUS_LABELS } from '@/lib/types';
 import { formatPrice } from '@/components/ProductCard';
 import {
-  Package, Tags, ShoppingBag, LogOut, Plus, Pencil, Trash2, X, Upload, Eye, EyeOff, Sparkles,
+  Package, Tags, ShoppingBag, LogOut, Plus, Pencil, Trash2, X, Upload, Eye, EyeOff, Sparkles, Ban,
 } from 'lucide-react';
 
 type Tab = 'products' | 'categories' | 'orders';
@@ -165,6 +165,12 @@ function ProductsTab({
     else onChanged();
   };
 
+  const toggleSoldOut = async (p: Product) => {
+    const { error } = await supabase.from('products').update({ is_sold_out: !p.is_sold_out }).eq('id', p.id);
+    if (error) notify('Could not update sold out status.', 'error');
+    else onChanged();
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -194,6 +200,9 @@ function ProductsTab({
                     </div>
                   )}
                   <div className="absolute top-2 right-2 flex gap-1">
+                    {p.is_sold_out && (
+                      <span className="bg-stone-900 text-cream text-[9px] uppercase tracking-widest px-2 py-1 rounded">Sold Out</span>
+                    )}
                     {p.is_new_arrival && (
                       <span className="bg-gold text-cream text-[9px] uppercase tracking-widest px-2 py-1 rounded">New</span>
                     )}
@@ -216,6 +225,9 @@ function ProductsTab({
                     </button>
                     <button onClick={() => toggleActive(p)} className="flex items-center justify-center px-3 border border-stone-200 hover:border-gold hover:text-gold transition-all" title={p.is_active ? 'Hide' : 'Show'}>
                       {p.is_active ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                    </button>
+                    <button onClick={() => toggleSoldOut(p)} className={`flex items-center justify-center px-3 border transition-all ${p.is_sold_out ? 'border-stone-900 text-stone-900 bg-stone-100' : 'border-stone-200 hover:border-stone-900'}`} title="Toggle Sold Out">
+                      <Ban className="h-3 w-3" />
                     </button>
                     <button onClick={() => toggleNew(p)} className={`flex items-center justify-center px-3 border transition-all ${p.is_new_arrival ? 'border-gold text-gold' : 'border-stone-200 hover:border-gold'}`} title="Toggle New Arrival">
                       <Sparkles className="h-3 w-3" />
@@ -255,6 +267,7 @@ function ProductModal({
   const [categoryId, setCategoryId] = useState(product?.category_id ?? categories[0]?.id ?? '');
   const [imageUrl, setImageUrl] = useState(product?.image_url ?? '');
   const [isNew, setIsNew] = useState(product?.is_new_arrival ?? false);
+  const [isSoldOut, setIsSoldOut] = useState(product?.is_sold_out ?? false);
   const [isActive, setIsActive] = useState(product?.is_active ?? true);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -285,6 +298,7 @@ function ProductModal({
       category_id: categoryId || null,
       image_url: imageUrl || null,
       is_new_arrival: isNew,
+      is_sold_out: isSoldOut,
       is_active: isActive,
     };
     const { error } = product
@@ -356,10 +370,14 @@ function ProductModal({
             </label>
           </div>
 
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-6 pt-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={isNew} onChange={(e) => setIsNew(e.target.checked)} className="h-4 w-4 accent-gold" />
               <span className="text-sm text-stone-600">New Arrival</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={isSoldOut} onChange={(e) => setIsSoldOut(e.target.checked)} className="h-4 w-4 accent-gold" />
+              <span className="text-sm text-stone-600">Sold Out</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="h-4 w-4 accent-gold" />

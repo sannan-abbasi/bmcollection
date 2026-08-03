@@ -2,6 +2,7 @@ export interface Category {
   id: string;
   name: string;
   slug: string;
+  parent_id?: string | null; // Supports subcategories
   description: string | null;
   image_url: string | null;
   sort_order: number;
@@ -16,6 +17,7 @@ export interface Product {
   price: number;
   image_url: string | null;
   is_new_arrival: boolean;
+  is_sold_out?: boolean; // Added for the admin sold-out toggle
   is_active: boolean;
   created_at: string;
 }

@@ -23,7 +23,7 @@ export default function Home() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('categories').select('*').order('sort_order'),
+      supabase.from('categories').select('*').order('sort_order', { ascending: true }),
       supabase.from('products').select('*').eq('is_active', true).order('created_at', { ascending: false }).limit(8),
     ]).then(([catRes, prodRes]) => {
       setCategories(catRes.data ?? []);
@@ -53,6 +53,13 @@ export default function Home() {
   const newArrivals = products.filter((p) => p.is_new_arrival).slice(0, 4);
   const featured = newArrivals.length > 0 ? newArrivals : products.slice(0, 4);
 
+  // Filter out main parent categories that have subcategories (like Cloth & Accessories)
+  // This keeps only leaf categories / direct collection links on the homepage grid
+  const displayCategories = categories.filter((cat) => {
+    const hasSubcategories = categories.some((c) => c.parent_id === cat.id);
+    return !hasSubcategories;
+  });
+
   return (
     <div>
       {/* Hero */}
@@ -77,7 +84,7 @@ export default function Home() {
           </p>
           <div className="hero-cta mt-10 flex flex-col sm:flex-row gap-4">
             <Link
-              to="/shop/jewellery"
+              to="/shop/bags-wallets"
               className="group flex items-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-all duration-300"
             >
               Explore Collection
@@ -107,7 +114,7 @@ export default function Home() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
-            {categories.map((cat, i) => {
+            {displayCategories.map((cat, i) => {
               const Icon = categoryIcons[cat.slug] ?? Sparkles;
               return (
                 <Link
@@ -176,7 +183,6 @@ export default function Home() {
             playsInline
             className="h-full w-full object-cover"
           >
-            {/* Place your video file inside the public folder (e.g. /public/promo.mp4) or paste a direct storage link */}
             <source src="/promo.mp4" type="video/mp4" />
           </video>
         </div>
@@ -189,7 +195,7 @@ export default function Home() {
             Witness our pieces come to life. Designed to capture light, command presence, and elevate your everyday wardrobe.
           </p>
           <Link
-            to="/shop/jewellery"
+            to="/shop/bags-wallets"
             className="inline-flex items-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-all duration-300"
           >
             Shop The Look <ArrowRight className="h-4 w-4" />

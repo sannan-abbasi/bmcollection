@@ -14,25 +14,37 @@ export default function Shop() {
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
+
+    const formattedSlug = slug.trim();
+
+    // Use .ilike() for case-insensitive slug matching (e.g. "Women" matches "women")
     supabase
       .from('categories')
       .select('*')
-      .eq('slug', slug)
+      .ilike('slug', formattedSlug)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error fetching category:', error);
+        }
+
         setCategory(data);
+
         if (data) {
           supabase
             .from('products')
             .select('*')
             .eq('category_id', data.id)
-            .eq('is_active', true)
             .order('created_at', { ascending: false })
-            .then(({ data: prods }) => {
+            .then(({ data: prods, error: prodError }) => {
+              if (prodError) {
+                console.error('Error fetching products:', prodError);
+              }
               setProducts(prods ?? []);
               setLoading(false);
             });
         } else {
+          setProducts([]);
           setLoading(false);
         }
       });
@@ -81,14 +93,14 @@ export default function Shop() {
 
         {/* Cross-links */}
         <div className="mt-20 flex flex-wrap justify-center gap-6">
-          <Link to="/shop/jewellery" className="text-xs uppercase tracking-widest text-stone-500 hover:text-gold transition-colors flex items-center gap-2">
-            Jewellery <ArrowRight className="h-3 w-3" />
+          <Link to="/shop/accessories" className="text-xs uppercase tracking-widest text-stone-500 hover:text-gold transition-colors flex items-center gap-2">
+            Accessories <ArrowRight className="h-3 w-3" />
           </Link>
-          <Link to="/shop/clothing" className="text-xs uppercase tracking-widest text-stone-500 hover:text-gold transition-colors flex items-center gap-2">
-            Clothing <ArrowRight className="h-3 w-3" />
+          <Link to="/shop/women" className="text-xs uppercase tracking-widest text-stone-500 hover:text-gold transition-colors flex items-center gap-2">
+            Women Clothing <ArrowRight className="h-3 w-3" />
           </Link>
-          <Link to="/shop/bags" className="text-xs uppercase tracking-widest text-stone-500 hover:text-gold transition-colors flex items-center gap-2">
-            Bags <ArrowRight className="h-3 w-3" />
+          <Link to="/shop/bags-wallets" className="text-xs uppercase tracking-widest text-stone-500 hover:text-gold transition-colors flex items-center gap-2">
+            Bags/Wallets <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
       </div>
