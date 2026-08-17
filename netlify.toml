@@ -1,16 +1,18 @@
 [build]
 command = "npm run build"
 publish = "dist"
- 
-[env]
-[env.production]
-  # SEO — set this to the live domain (no trailing slash) to switch on canonical
-  # URLs and sitemap.xml. Both are deliberately skipped while it is unset,
-  # because pointing them at the wrong domain is worse than leaving them out.
+
+# Netlify reads build-time variables from [build.environment].
+#
+# This file previously used an [env] / [env.production] block, which Netlify
+# does not recognise — nothing in it was ever applied. The Supabase values are
+# configured in the Netlify dashboard (Site settings → Environment variables),
+# which is why the site worked despite that block containing a typo'd project
+# URL. They are deliberately not repeated here so there is one source of truth.
+[build.environment]
+  # Enables canonical URLs and sitemap.xml generation at build time.
   VITE_SITE_URL = "https://bmcollections.com"
-  VITE_SUPABASE_URL = "https://lxbdjoanytvsimcwqjq.supabase.co"
-  VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx4YmRqb2FueXR2c3NpbWN3cWpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNjU2ODEsImV4cCI6MjEwMDg0MTY4MX0.aSVYL8fEZToYq8qBPZ1rjbI5HnphstkcE0uVVLasrcw"
- 
+
 [[redirects]]
 from = "/*"
 to = "/index.html"
