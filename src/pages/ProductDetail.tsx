@@ -1,10 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase, BRAND } from '@/lib/supabase';
+import { insertOrders } from '@/lib/orders';
 import type { Product } from '@/lib/types';
-import { formatPrice } from '@/components/ProductCard';
+import { comparePriceOf, discountPercentOf, formatPrice } from '@/lib/pricing';
+import { absoluteUrl, useSeo } from '@/lib/seo';
+import { looksLikeId, productPath } from '@/lib/slug';
+import PaymentMethodPicker from '@/components/PaymentMethodPicker';
+import {
+  DEFAULT_PAYMENT_METHOD,
+  PAYMENT_METHOD_LABELS,
+  initialPaymentStatus,
+  methodById,
+  type PaymentMethodId,
+} from '@/lib/payments';
 import { useToast } from '@/lib/toast';
-import { ArrowLeft, Check, MessageCircle, Sparkles } from 'lucide-react';
+import { useCart, FREE_DELIVERY_THRESHOLD } from '@/lib/cart';
+import { ArrowLeft, Check, MessageCircle, Minus, Plus, ShoppingCart, Sparkles, Truck } from 'lucide-react';
 import ProductReviews from '@/components/ProductReviews';
 import emailjs from '@emailjs/browser';
 
@@ -32,25 +44,112 @@ export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { notify } = useToast();
+  const { addItem, openCart } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOrder, setShowOrder] = useState(false);
   const [form, setForm] = useState<OrderForm>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [ordered, setOrdered] = useState(false);
+  const [qty, setQty] = useState(1);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>(DEFAULT_PAYMENT_METHOD);
+  const [paymentReference, setPaymentReference] = useState('');
 
   useEffect(() => {
     if (!id) return;
-    supabase
-      .from('products')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle()
-      .then(({ data }) => {
-        setProduct(data);
-        setLoading(false);
-      });
-  }, [id]);
+    let cancelled = false;
+    setLoading(true);
+
+    // `id` is whatever is in the URL — a slug for new links, a UUID for links
+    // shared before slugs existed. Try the slug first, then fall back.
+    const lookup = looksLikeId(id)
+      ? supabase.from('products').select('*').eq('id', id).maybeSingle()
+      : supabase.from('products').select('*').eq('slug', id).maybeSingle();
+
+    lookup.then(async ({ data, error }) => {
+      let found = data;
+
+      // Slug column missing, or nothing matched — try the other key before giving up.
+      if (!found && (error || !looksLikeId(id))) {
+        const retry = await supabase.from('products').select('*').eq('id', id).maybeSingle();
+        found = retry.data;
+      }
+      if (cancelled) return;
+
+      setProduct(found);
+      setLoading(false);
+
+      // Send UUID links to the readable URL so only one version gets indexed.
+      if (found?.slug && found.slug !== id) {
+        navigate(`/product/${found.slug}`, { replace: true });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, navigate]);
+
+  /* Structured data — this is what puts the price and "in stock" straight into
+     the Google result. Memoised so the SEO effect does not re-run every render. */
+  const productJsonLd = useMemo(() => {
+    if (!product) return null;
+    const url = absoluteUrl(productPath(product)) ?? undefined;
+    return {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'Product',
+          name: product.title,
+          description: product.description ?? undefined,
+          image: product.image_url ? [product.image_url] : undefined,
+          sku: product.id,
+          url,
+          brand: { '@type': 'Brand', name: BRAND.name },
+          offers: {
+            '@type': 'Offer',
+            price: Number(product.price),
+            priceCurrency: 'PKR',
+            availability: product.is_sold_out
+              ? 'https://schema.org/OutOfStock'
+              : 'https://schema.org/InStock',
+            url,
+            seller: { '@type': 'Organization', name: BRAND.name },
+          },
+        },
+        // Lets Google render "Home › Product" instead of a raw URL.
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: absoluteUrl('/') ?? undefined },
+            { '@type': 'ListItem', position: 2, name: product.title, item: url },
+          ],
+        },
+      ],
+    };
+  }, [product]);
+
+  useSeo({
+    title: product ? product.title : loading ? 'Loading…' : 'Product Not Found',
+    description:
+      product?.description?.trim() ||
+      (product
+        ? `Buy ${product.title} online in Pakistan for ${formatPrice(product.price)} at ${BRAND.name}. Cash on delivery nationwide and free delivery over Rs 5,000.`
+        : 'This product is no longer available.'),
+    path: product ? productPath(product) : `/product/${id ?? ''}`,
+    image: product?.image_url ?? null,
+    type: 'product',
+    jsonLd: productJsonLd,
+    // Never let a missing product sit in the search index.
+    noindex: !loading && !product,
+  });
+
+  const handleAddToBag = () => {
+    if (!product) return;
+    addItem(product, qty);
+    // No toast here — the drawer opens showing the item, which is the feedback.
+    openCart();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,19 +158,29 @@ export default function ProductDetail() {
 
     const orderPayload = {
       product_id: product.id,
-      product_title: product.title,
-      product_price: product.price,
+      product_title: qty > 1 ? `${product.title} x${qty}` : product.title,
+      product_price: product.price * qty,
       customer_name: form.customer_name,
       email: form.email,
       phone: form.phone,
       city: form.city,
       address: form.address,
       street: form.street || null,
-      notes: form.notes || null,
+      notes: [
+        `Payment: ${PAYMENT_METHOD_LABELS[paymentMethod]}${
+          paymentReference ? ` — TID ${paymentReference}` : ''
+        }`,
+        form.notes || null,
+      ]
+        .filter(Boolean)
+        .join('\n'),
       status: 'pending',
+      payment_method: paymentMethod,
+      payment_status: initialPaymentStatus(paymentMethod),
+      payment_reference: paymentReference.trim() || null,
     };
 
-    const { error } = await supabase.from('orders').insert(orderPayload).select().single();
+    const { error } = await insertOrders([orderPayload]);
     setSubmitting(false);
 
     if (error) {
@@ -86,15 +195,22 @@ export default function ProductDetail() {
         'service_mvfviau',
         'template_krdl205',
         {
-          product_title: product.title,
-          product_price: formatPrice(product.price),
+          product_title: qty > 1 ? `${product.title} x${qty}` : product.title,
+          product_price: formatPrice(product.price * qty),
           customer_name: form.customer_name,
           phone: form.phone,
           email: form.email,
           city: form.city,
           address: form.address,
           street: form.street || 'None',
-          notes: form.notes || 'None',
+          notes: [
+            `Payment: ${PAYMENT_METHOD_LABELS[paymentMethod]}${
+              paymentReference ? ` — TID ${paymentReference}` : ''
+            }`,
+            form.notes || null,
+          ]
+            .filter(Boolean)
+            .join('\n'),
         },
         '8qobEve1uR8ockQxe'
       ).catch((err) => console.error('Email alert failed:', err));
@@ -135,9 +251,13 @@ export default function ProductDetail() {
             <Check className="h-10 w-10 text-emerald-600" />
           </div>
           <h2 className="font-serif text-4xl text-ink mb-4">Thank You!</h2>
-          <p className="text-stone-600 leading-relaxed mb-8">
+          <p className="text-stone-600 leading-relaxed mb-4">
             Your order for <span className="font-medium text-ink">{product.title}</span> has been received.
             Our team will contact you at <span className="font-medium">{form.phone}</span> shortly to confirm details.
+          </p>
+          <p className="text-stone-600 leading-relaxed mb-8">
+            Paying by <span className="font-medium text-ink">{PAYMENT_METHOD_LABELS[paymentMethod]}</span>
+            {methodById(paymentMethod)?.requiresReference && ' — we will verify your transfer before dispatch.'}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/" className="text-sm uppercase tracking-widest border border-stone-300 px-6 py-3 hover:border-gold hover:text-gold transition-all">
@@ -148,6 +268,10 @@ export default function ProductDetail() {
       </div>
     );
   }
+
+  const isSoldOut = Boolean(product.is_sold_out);
+  const wasPrice = comparePriceOf(product.price, product.compare_at_price);
+  const discount = discountPercentOf(product.price, product.compare_at_price);
 
   return (
     <div className="pt-28 pb-16 px-6">
@@ -170,9 +294,14 @@ export default function ProductDetail() {
                 <Sparkles className="h-12 w-12 text-stone-300" />
               </div>
             )}
-            {product.is_new_arrival && (
+            {product.is_new_arrival && !isSoldOut && (
               <span className="absolute top-6 left-6 bg-ink/90 text-cream text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full">
                 New Arrival
+              </span>
+            )}
+            {isSoldOut && (
+              <span className="absolute top-6 left-6 bg-stone-900/90 text-stone-200 text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full border border-stone-700">
+                Sold Out
               </span>
             )}
           </div>
@@ -180,8 +309,21 @@ export default function ProductDetail() {
           {/* Details */}
           <div className="flex flex-col justify-center">
             <p className="text-xs uppercase tracking-[0.3em] text-gold mb-3">BM Collection</p>
-            <h1 className="font-serif text-4xl md:text-5xl text-ink mb-4">{product.title}</h1>
-            <p className="text-2xl text-stone-700 font-sans font-light mb-6">{formatPrice(product.price)}</p>
+            <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl text-ink mb-4">{product.title}</h1>
+
+            <div className="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-2">
+              <span className="text-2xl font-sans font-light text-ink">{formatPrice(product.price)}</span>
+              {wasPrice !== null && (
+                <span className="text-lg font-sans font-light text-stone-400 line-through">
+                  {formatPrice(wasPrice)}
+                </span>
+              )}
+              {discount !== null && (
+                <span className="rounded-full bg-gold px-3 py-1 text-[10px] font-medium uppercase tracking-widest text-cream">
+                  {discount}% Off
+                </span>
+              )}
+            </div>
 
             {product.description && (
               <p className="text-stone-600 leading-relaxed mb-8">{product.description}</p>
@@ -194,16 +336,66 @@ export default function ProductDetail() {
               <div className="flex items-center gap-3">
                 <Check className="h-4 w-4 text-gold" /> Cash on delivery available
               </div>
+              <div className="flex items-center gap-3">
+                <Truck className="h-4 w-4 text-gold" /> Free delivery on orders of{' '}
+                {formatPrice(FREE_DELIVERY_THRESHOLD)} and above
+              </div>
             </div>
 
-            {!showOrder ? (
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button
-                  onClick={() => setShowOrder(true)}
-                  className="flex items-center justify-center gap-2 bg-ink text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold transition-all duration-300"
+            {isSoldOut ? (
+              <div className="border border-stone-200 bg-stone-50 px-6 py-5 text-center">
+                <p className="font-serif text-xl text-ink mb-1">Currently Sold Out</p>
+                <p className="text-sm text-stone-500 mb-4">
+                  Message us on WhatsApp and we will let you know the moment it is back.
+                </p>
+                <a
+                  href={`${BRAND.whatsappLink}?text=${encodeURIComponent(`Hi, please notify me when ${product.title} is back in stock.`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 border border-stone-300 text-ink px-8 py-3 text-sm uppercase tracking-widest hover:border-gold hover:text-gold transition-all duration-300"
                 >
-                  Place Order
-                </button>
+                  <MessageCircle className="h-4 w-4" /> Notify Me
+                </a>
+              </div>
+            ) : !showOrder ? (
+              <div className="space-y-4">
+                {/* Quantity */}
+                <div className="flex items-center gap-4">
+                  <span className="text-xs uppercase tracking-widest text-stone-500">Quantity</span>
+                  <div className="flex items-center border border-stone-300">
+                    <button
+                      onClick={() => setQty((q) => Math.max(1, q - 1))}
+                      aria-label="Decrease quantity"
+                      className="px-3 py-2 text-stone-600 hover:text-gold transition-colors"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="min-w-[2.5rem] text-center text-sm tabular-nums text-ink">{qty}</span>
+                    <button
+                      onClick={() => setQty((q) => Math.min(99, q + 1))}
+                      aria-label="Increase quantity"
+                      className="px-3 py-2 text-stone-600 hover:text-gold transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button
+                    onClick={handleAddToBag}
+                    className="flex flex-1 items-center justify-center gap-2 bg-ink text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold transition-all duration-300"
+                  >
+                    <ShoppingCart className="h-4 w-4" /> Add to Bag
+                  </button>
+                  <button
+                    onClick={() => setShowOrder(true)}
+                    className="flex flex-1 items-center justify-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-all duration-300"
+                  >
+                    Buy Now
+                  </button>
+                </div>
+
                 <a
                   href={`${BRAND.whatsappLink}?text=${encodeURIComponent(`Hi, I'm interested in ${product.title} (${formatPrice(product.price)}).`)}`}
                   target="_blank"
@@ -279,6 +471,16 @@ export default function ProductDetail() {
                     className="premium-input"
                   />
                 </Field>
+
+                <div className="border-t border-stone-200 pt-5">
+                  <h3 className="mb-3 text-xs uppercase tracking-widest text-stone-500">Payment</h3>
+                  <PaymentMethodPicker
+                    value={paymentMethod}
+                    onChange={setPaymentMethod}
+                    reference={paymentReference}
+                    onReferenceChange={setPaymentReference}
+                  />
+                </div>
 
                 <Field label="Order Notes (optional)">
                   <textarea

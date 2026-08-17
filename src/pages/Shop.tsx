@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { supabase, BRAND } from '@/lib/supabase';
 import type { Category, Product } from '@/lib/types';
 import ProductCard from '@/components/ProductCard';
+import { absoluteUrl, useSeo } from '@/lib/seo';
+import { productPath } from '@/lib/slug';
 import { ArrowRight } from 'lucide-react';
 
 export default function Shop() {
@@ -10,6 +12,53 @@ export default function Shop() {
   const [category, setCategory] = useState<Category | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const categoryName = category?.name ?? 'Shop';
+  // Several categories have one-word descriptions in the database ("bags"),
+  // which makes a useless search snippet — fall back to a written one unless
+  // the stored text is substantial enough to stand on its own.
+  const storedDescription = category?.description?.trim() ?? '';
+  const writtenDescription = `Shop ${categoryName.toLowerCase()} at ${BRAND.name} — browse the latest pieces with cash on delivery across Pakistan and free delivery over Rs 5,000.`;
+
+  // Breadcrumb so Google shows "Home › Bags/Wallets", plus the product list on
+  // the page — both help this rank as a category page rather than a dead end.
+  const categoryJsonLd = useMemo(() => {
+    if (!category) return null;
+    const categoryUrl = absoluteUrl(`/shop/${category.slug}`) ?? undefined;
+    return {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: absoluteUrl('/') ?? undefined },
+            { '@type': 'ListItem', position: 2, name: category.name, item: categoryUrl },
+          ],
+        },
+        {
+          '@type': 'ItemList',
+          name: category.name,
+          numberOfItems: products.length,
+          itemListElement: products.slice(0, 30).map((p, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            name: p.title,
+            url: absoluteUrl(productPath(p)) ?? undefined,
+          })),
+        },
+      ],
+    };
+  }, [category, products]);
+
+  useSeo({
+    title: `${categoryName} — Buy Online in Pakistan`,
+    description: storedDescription.length >= 60 ? storedDescription : writtenDescription,
+    path: `/shop/${slug ?? ''}`,
+    image: category?.image_url ?? products.find((p) => p.image_url)?.image_url ?? null,
+    jsonLd: categoryJsonLd,
+    // An unknown slug renders an empty shell — keep it out of the index.
+    noindex: !loading && !category,
+  });
 
   useEffect(() => {
     if (!slug) return;

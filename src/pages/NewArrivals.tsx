@@ -3,11 +3,19 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import type { Product } from '@/lib/types';
 import ProductCard from '@/components/ProductCard';
-import { ArrowRight } from 'lucide-react';
+import { useSeo } from '@/lib/seo';
 
 export default function NewArrivals() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useSeo({
+    title: 'New Arrivals — Latest Jewellery, Clothing & Bags',
+    description:
+      'The newest pieces at BM Collection — jewellery, clothing, bags and accessories, added weekly. Cash on delivery across Pakistan.',
+    path: '/new-arrivals',
+    image: products.find((p) => p.image_url)?.image_url ?? null,
+  });
 
   useEffect(() => {
     supabase

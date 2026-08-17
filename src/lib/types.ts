@@ -13,8 +13,12 @@ export interface Product {
   id: string;
   category_id: string | null;
   title: string;
+  /** URL slug, e.g. 'royalty-in-purple-heart-pendant-piece'. */
+  slug?: string | null;
   description: string | null;
   price: number;
+  /** Optional struck-through "was" price, set per product in the admin. */
+  compare_at_price?: number | null;
   image_url: string | null;
   is_new_arrival: boolean;
   is_sold_out?: boolean; // Added for the admin sold-out toggle
@@ -35,6 +39,9 @@ export interface Order {
   street: string | null;
   notes: string | null;
   status: string;
+  payment_method?: string; // cod | bank | jazzcash | easypaisa
+  payment_status?: string; // unpaid | awaiting_verification | paid
+  payment_reference?: string | null;
   created_at: string;
 }
 

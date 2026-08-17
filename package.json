@@ -8,7 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "prebuild": "node scripts/generate-seo-files.mjs",
+    "seo:files": "node scripts/generate-seo-files.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

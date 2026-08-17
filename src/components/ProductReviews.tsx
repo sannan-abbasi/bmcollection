@@ -50,7 +50,7 @@ export default function ProductReviews({ productId }: { productId: string }) {
 
     if (!error) {
       setName('');
-      setComment();
+      setComment('');
       setRating(5);
       fetchReviews();
     }

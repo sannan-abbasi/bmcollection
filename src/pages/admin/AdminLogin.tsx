@@ -2,10 +2,18 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/lib/toast';
 import { supabase, ADMIN_EMAIL } from '@/lib/supabase';
+import { useSeo } from '@/lib/seo';
 import { Lock, ArrowLeft, UserPlus } from 'lucide-react';
 
 export default function AdminLogin() {
   const { notify } = useToast();
+
+  useSeo({
+    title: 'Admin Sign In',
+    description: 'BM Collection store administration.',
+    path: '/admin',
+    noindex: true,
+  });
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -52,7 +60,7 @@ export default function AdminLogin() {
         setLoading(false);
         notify('Login succeeded, but no session was returned.', 'error');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setLoading(false);
       console.error('Unexpected login error:', err);
       notify('An unexpected error occurred. Check console for details.', 'error');

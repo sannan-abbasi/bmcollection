@@ -3,9 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { supabase } from '@/lib/supabase';
+import { useSeo } from '@/lib/seo';
+import { slugify } from '@/lib/slug';
 import type { Category, Product, Order, OrderStatus } from '@/lib/types';
 import { ORDER_STATUS_LABELS } from '@/lib/types';
-import { formatPrice } from '@/components/ProductCard';
+import {
+  DEFAULT_DISCOUNT_PERCENT,
+  comparePriceOf,
+  discountPercentOf,
+  formatPrice,
+  priceFromDiscount,
+} from '@/lib/pricing';
+import {
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_STATUS_LABELS,
+  type PaymentMethodId,
+  type PaymentStatus,
+} from '@/lib/payments';
 import {
   Package, Tags, ShoppingBag, LogOut, Plus, Pencil, Trash2, X, Upload, Eye, EyeOff, Sparkles, Ban,
 } from 'lucide-react';
@@ -21,6 +35,14 @@ export default function AdminDashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Called before the auth early-return below, so the hook order stays stable.
+  useSeo({
+    title: 'Dashboard',
+    description: 'BM Collection store administration.',
+    path: '/admin/dashboard',
+    noindex: true,
+  });
 
   const loadData = useCallback(async () => {
     const [catRes, prodRes, ordRes] = await Promise.all([
@@ -264,6 +286,7 @@ function ProductModal({
   const [title, setTitle] = useState(product?.title ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
   const [price, setPrice] = useState(String(product?.price ?? ''));
+  const [compareAt, setCompareAt] = useState(String(product?.compare_at_price ?? ''));
   const [categoryId, setCategoryId] = useState(product?.category_id ?? categories[0]?.id ?? '');
   const [imageUrl, setImageUrl] = useState(product?.image_url ?? '');
   const [isNew, setIsNew] = useState(product?.is_new_arrival ?? false);
@@ -287,26 +310,70 @@ function ProductModal({
     notify('Image uploaded.');
   };
 
+  // Live figures for the sale-price controls and their preview.
+  const priceNum = parseFloat(price) || 0;
+  const compareNum = parseFloat(compareAt) || 0;
+  const livePercent = discountPercentOf(priceNum, compareNum);
+  const liveWas = comparePriceOf(priceNum, compareNum);
+
+  /** Typing a percentage fills in the original price it implies. */
+  const applyDiscountPercent = (value: string) => {
+    const percent = parseFloat(value);
+    if (!priceNum || !percent || percent <= 0 || percent >= 100) {
+      setCompareAt('');
+      return;
+    }
+    setCompareAt(String(priceFromDiscount(priceNum, percent)));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !price) { notify('Title and price are required.', 'error'); return; }
+    if (compareNum > 0 && compareNum <= priceNum) {
+      notify('Original price must be higher than the selling price.', 'error');
+      return;
+    }
     setSaving(true);
     const payload = {
       title,
+      // Drives the product URL. Regenerated from the title so renaming a
+      // product updates its link too.
+      slug: slugify(title),
       description: description || null,
-      price: parseFloat(price),
+      price: priceNum,
+      // Blank, or not above the selling price, means "not on sale".
+      compare_at_price: compareNum > priceNum ? compareNum : null,
       category_id: categoryId || null,
       image_url: imageUrl || null,
       is_new_arrival: isNew,
       is_sold_out: isSoldOut,
       is_active: isActive,
     };
-    const { error } = product
-      ? await supabase.from('products').update(payload).eq('id', product.id)
-      : await supabase.from('products').insert(payload);
+    const save = (body: Record<string, unknown>) =>
+      product
+        ? supabase.from('products').update(body).eq('id', product.id)
+        : supabase.from('products').insert(body);
+
+    let { error } = await save(payload);
+
+    // Two products can share a title ("Scrunchies"). The slug is unique, so on
+    // a collision retry once with a short suffix rather than failing the save.
+    if (error?.code === '23505' && String(error.message).includes('slug')) {
+      const unique = `${payload.slug}-${Date.now().toString(36).slice(-4)}`;
+      ({ error } = await save({ ...payload, slug: unique }));
+    }
+
     setSaving(false);
-    if (error) notify('Could not save product.', 'error');
-    else { notify(product ? 'Product updated.' : 'Product added.'); onSaved(); }
+    if (error) {
+      // These columns only exist once their migrations have been run.
+      if (error.code === 'PGRST204' && String(error.message).includes('compare_at_price')) {
+        notify('Run the compare_at_price migration in Supabase, then try again.', 'error');
+      } else if (error.code === 'PGRST204' && String(error.message).includes('slug')) {
+        notify('Run the product slug migration in Supabase, then try again.', 'error');
+      } else {
+        notify('Could not save product.', 'error');
+      }
+    } else { notify(product ? 'Product updated.' : 'Product added.'); onSaved(); }
   };
 
   return (
@@ -368,6 +435,59 @@ function ProductModal({
                 ))}
               </select>
             </label>
+          </div>
+
+          {/* Sale pricing — set either figure, the other follows */}
+          <div className="border border-stone-200 rounded-lg p-4 bg-white/60">
+            <span className="text-xs uppercase tracking-widest text-stone-500 mb-1 block">Sale Price (optional)</span>
+            <p className="text-xs text-stone-500 mb-3">
+              Set an original price to show it struck through with a discount tag. Fill in either
+              box and the other updates itself. Leave blank for no discount on this product.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="block">
+                <span className="text-xs uppercase tracking-widest text-stone-500 mb-2 block">Original Price (Rs)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={compareAt}
+                  onChange={(e) => setCompareAt(e.target.value)}
+                  placeholder="e.g. 2250"
+                  className="premium-input"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs uppercase tracking-widest text-stone-500 mb-2 block">Discount %</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="99"
+                  step="1"
+                  value={livePercent ?? ''}
+                  onChange={(e) => applyDiscountPercent(e.target.value)}
+                  placeholder={String(DEFAULT_DISCOUNT_PERCENT)}
+                  className="premium-input"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 text-sm">
+              <span className="text-xs uppercase tracking-widest text-stone-400 mr-2">Shows as</span>
+              {liveWas !== null && livePercent !== null ? (
+                <span className="inline-flex items-baseline gap-2">
+                  <span className="font-medium text-ink">{formatPrice(priceNum)}</span>
+                  <span className="text-stone-400 line-through">{formatPrice(liveWas)}</span>
+                  <span className="rounded-full bg-gold px-2 py-0.5 text-[10px] uppercase tracking-widest text-cream">
+                    {livePercent}% Off
+                  </span>
+                </span>
+              ) : (
+                <span className="text-stone-500">
+                  {priceNum > 0 ? `${formatPrice(priceNum)} — no discount tag` : 'Enter a price first'}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-6 pt-2">
@@ -550,6 +670,12 @@ function OrdersTab({
     else { notify('Order status updated.'); onChanged(); }
   };
 
+  const updatePaymentStatus = async (id: string, payment_status: PaymentStatus) => {
+    const { error } = await supabase.from('orders').update({ payment_status }).eq('id', id);
+    if (error) notify('Could not update payment status.', 'error');
+    else { notify(`Payment marked ${PAYMENT_STATUS_LABELS[payment_status].toLowerCase()}.`); onChanged(); }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this order?')) return;
     const { error } = await supabase.from('orders').delete().eq('id', id);
@@ -567,6 +693,12 @@ function OrdersTab({
     shipped: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     cancelled: 'bg-red-50 text-red-700 border-red-200',
+  };
+
+  const paymentColors: Record<string, string> = {
+    unpaid: 'bg-stone-100 text-stone-600 border-stone-200',
+    awaiting_verification: 'bg-amber-50 text-amber-700 border-amber-200',
+    paid: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   };
 
   return (
@@ -587,6 +719,14 @@ function OrdersTab({
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
                 <span className="text-sm text-stone-600 hidden sm:inline">{formatPrice(o.product_price)}</span>
+                {/* Payment needing a look gets flagged right in the list */}
+                <span
+                  className={`text-xs px-3 py-1 rounded-full border hidden sm:inline ${
+                    paymentColors[o.payment_status ?? 'unpaid'] ?? ''
+                  }`}
+                >
+                  {PAYMENT_STATUS_LABELS[(o.payment_status ?? 'unpaid') as PaymentStatus] ?? o.payment_status}
+                </span>
                 <span className={`text-xs px-3 py-1 rounded-full border ${statusColors[o.status] ?? ''}`}>
                   {ORDER_STATUS_LABELS[o.status as OrderStatus] ?? o.status}
                 </span>
@@ -626,6 +766,38 @@ function OrdersTab({
                         </button>
                       ))}
                     </div>
+                    <h4 className="text-xs uppercase tracking-widest text-stone-400 mt-5 mb-2">Payment</h4>
+                    <dl className="space-y-1 text-sm mb-3">
+                      <div>
+                        <dt className="inline text-stone-500">Method: </dt>
+                        <dd className="inline text-ink">
+                          {PAYMENT_METHOD_LABELS[(o.payment_method ?? 'cod') as PaymentMethodId] ??
+                            o.payment_method}
+                        </dd>
+                      </div>
+                      {o.payment_reference && (
+                        <div>
+                          <dt className="inline text-stone-500">Transaction ID: </dt>
+                          <dd className="inline font-medium text-ink">{o.payment_reference}</dd>
+                        </div>
+                      )}
+                    </dl>
+                    <div className="flex flex-wrap gap-2">
+                      {(['unpaid', 'awaiting_verification', 'paid'] as PaymentStatus[]).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => updatePaymentStatus(o.id, s)}
+                          className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                            (o.payment_status ?? 'unpaid') === s
+                              ? paymentColors[s]
+                              : 'border-stone-200 text-stone-500 hover:border-stone-400'
+                          }`}
+                        >
+                          {PAYMENT_STATUS_LABELS[s]}
+                        </button>
+                      ))}
+                    </div>
+
                     <div className="flex gap-2 mt-4">
                       <a
                         href={`https://wa.me/${o.phone.replace(/[^0-9]/g, '')}`}

@@ -4,6 +4,10 @@ publish = "dist"
  
 [env]
 [env.production]
+  # SEO — set this to the live domain (no trailing slash) to switch on canonical
+  # URLs and sitemap.xml. Both are deliberately skipped while it is unset,
+  # because pointing them at the wrong domain is worse than leaving them out.
+  VITE_SITE_URL = "https://bmcollections.com"
   VITE_SUPABASE_URL = "https://lxbdjoanytvsimcwqjq.supabase.co"
   VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx4YmRqb2FueXR2c3NpbWN3cWpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNjU2ODEsImV4cCI6MjEwMDg0MTY4MX0.aSVYL8fEZToYq8qBPZ1rjbI5HnphstkcE0uVVLasrcw"
  

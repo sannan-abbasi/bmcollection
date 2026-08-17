@@ -1,31 +1,61 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { Menu, X, ShoppingBag, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import gsap from 'gsap';
+import { Menu, X, Instagram, ShoppingCart, ChevronDown } from 'lucide-react';
 import { supabase, BRAND } from '@/lib/supabase';
+import { useCart } from '@/lib/cart';
+import AnnouncementBar from '@/components/AnnouncementBar';
 import type { Category } from '@/lib/types';
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [overHero, setOverHero] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const location = useLocation();
+  const { count, openCart, lastAddedAt } = useCart();
+  const badgeRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 30);
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
+    const onScroll = () => {
+      setScrolled(window.scrollY > 30);
+      // The homepage hero is full-height and dark; the bar only switches to the
+      // light treatment once it has cleared it.
+      setOverHero(window.scrollY < window.innerHeight - 80);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
   }, []);
+
+  // Pop the badge whenever something new lands in the bag.
+  useEffect(() => {
+    if (!lastAddedAt || !badgeRef.current) return;
+    gsap.fromTo(
+      badgeRef.current,
+      { scale: 0.4 },
+      { scale: 1, duration: 0.6, ease: 'elastic.out(1, 0.5)' }
+    );
+  }, [lastAddedAt, count]);
 
   // Fetch categories from Supabase
   useEffect(() => {
+    let cancelled = false;
     supabase
       .from('categories')
       .select('*')
       .then(({ data }) => {
-        if (data) setCategories(data);
+        if (!cancelled && data) setCategories(data);
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -38,19 +68,38 @@ export default function Navbar() {
   const mainCategories = categories.filter((c) => !c.parent_id);
   const getSubcategories = (parentId: string) => categories.filter((c) => c.parent_id === parentId);
 
+  // The navbar rides over the homepage's dark hero for a full screen. Going
+  // light there would drop a bright cream bar onto the dark scene, so the whole
+  // header stays dark until the hero has scrolled past.
+  const onDark = location.pathname === '/' && overHero;
+  const linkBase = onDark ? 'text-cream hover:text-gold-light' : 'text-ink hover:text-gold';
+  const activeColor = onDark ? 'text-gold-light' : 'text-gold';
+
+  // Over the hero the bar keeps a defined surface from the very first pixel —
+  // fully transparent, it read as part of the artwork rather than as navigation.
+  const headerSurface = onDark
+    ? 'glass-dark border-b border-gold/25 shadow-lg shadow-ink/40'
+    : scrolled
+      ? 'glass shadow-md'
+      : 'bg-transparent';
+
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-          scrolled ? 'glass shadow-md py-3' : 'bg-transparent py-5'
-        }`}
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${headerSurface}`}
       >
-        <nav className="mx-auto flex max-w-7xl items-center justify-between px-6">
+        <AnnouncementBar collapsed={scrolled} />
+
+        <nav
+          className={`mx-auto flex max-w-7xl items-center justify-between px-6 transition-all duration-500 ${
+            scrolled ? 'py-3' : 'py-5'
+          }`}
+        >
           <Link to="/" className="flex items-center gap-2">
-            <span className="font-serif text-2xl font-semibold tracking-wide text-ink">
+            <span className={`font-serif text-2xl font-semibold tracking-wide transition-colors ${onDark ? 'text-cream' : 'text-ink'}`}>
               {BRAND.name.split(' ')[0]}<span className="text-gold">.</span>
             </span>
-            <span className="hidden sm:inline text-[10px] uppercase tracking-[0.3em] text-stone-500 font-sans">
+            <span className={`hidden sm:inline text-[10px] uppercase tracking-[0.3em] font-sans transition-colors ${onDark ? 'text-cream/60' : 'text-stone-500'}`}>
               {BRAND.name.split(' ').slice(1).join(' ')}
             </span>
           </Link>
@@ -61,7 +110,7 @@ export default function Navbar() {
             <Link
               to="/"
               className={`text-sm uppercase tracking-widest transition-colors duration-300 relative group ${
-                location.pathname === '/' ? 'text-gold' : 'text-ink hover:text-gold'
+                location.pathname === '/' ? activeColor : linkBase
               }`}
             >
               Home
@@ -86,7 +135,7 @@ export default function Navbar() {
                     /* Non-clickable parent header if it has subcategories */
                     <span
                       className={`flex items-center gap-1 text-sm uppercase tracking-widest cursor-pointer transition-colors duration-300 ${
-                        isChildActive ? 'text-gold' : 'text-ink hover:text-gold'
+                        isChildActive ? activeColor : linkBase
                       }`}
                     >
                       {cat.name}
@@ -97,7 +146,7 @@ export default function Navbar() {
                     <Link
                       to={`/shop/${cat.slug}`}
                       className={`flex items-center gap-1 text-sm uppercase tracking-widest transition-colors duration-300 ${
-                        isCurrentActive ? 'text-gold' : 'text-ink hover:text-gold'
+                        isCurrentActive ? activeColor : linkBase
                       }`}
                     >
                       {cat.name}
@@ -132,7 +181,7 @@ export default function Navbar() {
             <Link
               to="/new-arrivals"
               className={`text-sm uppercase tracking-widest transition-colors duration-300 relative group ${
-                location.pathname === '/new-arrivals' ? 'text-gold' : 'text-ink hover:text-gold'
+                location.pathname === '/new-arrivals' ? activeColor : linkBase
               }`}
             >
               New Arrivals
@@ -140,16 +189,36 @@ export default function Navbar() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
             <Link
               to="/admin"
-              className="hidden md:block text-xs uppercase tracking-widest text-stone-500 hover:text-gold transition-colors"
+              className={`hidden md:block text-xs uppercase tracking-widest transition-colors ${
+                onDark ? 'text-cream/60 hover:text-gold-light' : 'text-stone-500 hover:text-gold'
+              }`}
             >
               Admin
             </Link>
+
+            {/* Cart */}
+            <button
+              onClick={openCart}
+              aria-label={`Open bag${count > 0 ? `, ${count} item${count > 1 ? 's' : ''}` : ''}`}
+              className={`relative transition-colors ${onDark ? 'text-cream hover:text-gold-light' : 'text-ink hover:text-gold'}`}
+            >
+              <ShoppingCart className="h-5 w-5" />
+              {count > 0 && (
+                <span
+                  ref={badgeRef}
+                  className="absolute -right-2 -top-2 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-gold px-1 text-[10px] font-medium leading-none text-cream"
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={() => setOpen(!open)}
-              className="md:hidden text-ink"
+              className={`md:hidden transition-colors ${onDark ? 'text-cream' : 'text-ink'}`}
               aria-label="Menu"
             >
               {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -237,8 +306,14 @@ export default function Navbar() {
           </Link>
 
           <div className="flex gap-6 mt-4">
-            <a href={BRAND.instagram} target="_blank" rel="noreferrer" className="text-cream/60 hover:text-gold">
-              <ShoppingBag className="h-5 w-5" />
+            <a
+              href={BRAND.instagram}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="BM Collection on Instagram"
+              className="text-cream/60 hover:text-gold"
+            >
+              <Instagram className="h-5 w-5" />
             </a>
           </div>
         </div>
