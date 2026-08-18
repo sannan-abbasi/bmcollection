@@ -3,7 +3,8 @@ import { ShoppingCart, Sparkles } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { useCart } from '@/lib/cart';
 import { useToast } from '@/lib/toast';
-import { comparePriceOf, discountPercentOf, formatPrice } from '@/lib/pricing';
+import { useCurrency } from '@/lib/currency';
+import { comparePriceOf, discountPercentOf } from '@/lib/pricing';
 import { productPath } from '@/lib/slug';
 
 export default function ProductCard({ product }: { product: Product }) {
@@ -11,6 +12,7 @@ export default function ProductCard({ product }: { product: Product }) {
   const isSoldOut = Boolean(product.is_sold_out);
   const { addItem } = useCart();
   const { notify } = useToast();
+  const { format } = useCurrency();
   const wasPrice = comparePriceOf(product.price, product.compare_at_price);
   const discount = discountPercentOf(product.price, product.compare_at_price);
 
@@ -93,9 +95,9 @@ export default function ProductCard({ product }: { product: Product }) {
           <p className="mt-1 text-sm text-stone-400 italic">Sold Out</p>
         ) : (
           <div className="mt-1 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5">
-            <span className="text-sm font-medium text-ink">{formatPrice(product.price)}</span>
+            <span className="text-sm font-medium text-ink">{format(product.price)}</span>
             {wasPrice !== null && (
-              <span className="text-xs text-stone-400 line-through">{formatPrice(wasPrice)}</span>
+              <span className="text-xs text-stone-400 line-through">{format(wasPrice)}</span>
             )}
           </div>
         )}

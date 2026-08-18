@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/lib/auth';
 import { ToastProvider } from '@/lib/toast';
 import { CartProvider } from '@/lib/cart';
+import { CurrencyProvider } from '@/lib/currency';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import CartDrawer from '@/components/CartDrawer';
@@ -16,7 +17,8 @@ import AdminDashboard from '@/pages/admin/AdminDashboard';
 function App() {
   return (
     <AuthProvider>
-      <CartProvider>
+      <CurrencyProvider>
+        <CartProvider>
         <ToastProvider>
           <BrowserRouter>
             <ScrollToTop />
@@ -38,7 +40,8 @@ function App() {
             </div>
           </BrowserRouter>
         </ToastProvider>
-      </CartProvider>
+        </CartProvider>
+      </CurrencyProvider>
     </AuthProvider>
   );
 }

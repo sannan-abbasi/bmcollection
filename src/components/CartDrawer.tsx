@@ -5,8 +5,9 @@ import emailjs from '@emailjs/browser';
 import { Check, Minus, Plus, ShoppingBag, Trash2, Truck, X } from 'lucide-react';
 import { insertOrders } from '@/lib/orders';
 import { useCart, FREE_DELIVERY_THRESHOLD } from '@/lib/cart';
+import { useCurrency } from '@/lib/currency';
 import { useToast } from '@/lib/toast';
-import { comparePriceOf, formatPrice, savingsOf } from '@/lib/pricing';
+import { comparePriceOf, savingsOf } from '@/lib/pricing';
 import { productPath } from '@/lib/slug';
 import PaymentMethodPicker from '@/components/PaymentMethodPicker';
 import {
@@ -43,6 +44,7 @@ export default function CartDrawer() {
   const { items, count, subtotal, freeDelivery, amountToFreeDelivery, isOpen, closeCart, setQty, removeItem, clearCart } =
     useCart();
   const { notify } = useToast();
+  const { format: money, billedPkr, isInternational, code: currencyCode } = useCurrency();
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -98,7 +100,7 @@ export default function CartDrawer() {
 
     const ref = 'BM-' + Date.now().toString(36).toUpperCase().slice(-6);
     const itemLines = items
-      .map((i) => `${i.title} x${i.qty} — ${formatPrice(i.price * i.qty)}`)
+      .map((i) => `${i.title} x${i.qty} — ${money(i.price * i.qty)}`)
       .join('\n');
     const deliveryNote = freeDelivery
       ? 'FREE DELIVERY (order qualifies)'
@@ -110,8 +112,9 @@ export default function CartDrawer() {
       `Order Ref: ${ref}`,
       `Items (${count}):`,
       itemLines,
-      `Subtotal: ${formatPrice(subtotal)}`,
+      `Subtotal: ${money(subtotal)}`,
       deliveryNote,
+      isInternational ? `Shown to customer in ${currencyCode}: ${money(subtotal)}` : null,
       paymentLine,
       form.notes ? `Customer notes: ${form.notes}` : null,
     ]
@@ -123,7 +126,7 @@ export default function CartDrawer() {
     const rows = items.map((i) => ({
       product_id: i.id,
       product_title: i.qty > 1 ? `${i.title} x${i.qty}` : i.title,
-      product_price: i.price * i.qty,
+      product_price: billedPkr(i.price) * i.qty,
       customer_name: form.customer_name,
       email: form.email,
       phone: form.phone,
@@ -157,7 +160,7 @@ export default function CartDrawer() {
         'template_krdl205',
         {
           product_title: `Cart Order — ${count} item${count > 1 ? 's' : ''} (${ref})`,
-          product_price: formatPrice(subtotal),
+          product_price: money(subtotal),
           customer_name: form.customer_name,
           phone: form.phone,
           email: form.email,
@@ -236,7 +239,7 @@ export default function CartDrawer() {
                 </span>
               ) : (
                 <span>
-                  Add <span className="font-medium text-ink">{formatPrice(amountToFreeDelivery)}</span> more for{' '}
+                  Add <span className="font-medium text-ink">{money(amountToFreeDelivery)}</span> more for{' '}
                   <span className="font-medium text-gold">free delivery</span>
                 </span>
               )}
@@ -282,7 +285,7 @@ export default function CartDrawer() {
             <ShoppingBag className="mb-4 h-12 w-12 text-stone-300" />
             <p className="mb-2 font-serif text-2xl text-ink">Your bag is empty</p>
             <p className="mb-8 text-sm text-stone-500">
-              Add something beautiful — spend {formatPrice(FREE_DELIVERY_THRESHOLD)} and delivery is on us.
+              Add something beautiful — spend {money(FREE_DELIVERY_THRESHOLD)} and delivery is on us.
             </p>
             <Link
               to="/new-arrivals"
@@ -321,10 +324,10 @@ export default function CartDrawer() {
                         {item.title}
                       </Link>
                       <p className="mt-1 flex items-baseline gap-2 text-sm text-stone-500">
-                        <span>{formatPrice(item.price)}</span>
+                        <span>{money(item.price)}</span>
                         {comparePriceOf(item.price, item.compare_at_price) !== null && (
                           <span className="text-xs text-stone-400 line-through">
-                            {formatPrice(comparePriceOf(item.price, item.compare_at_price)!)}
+                            {money(comparePriceOf(item.price, item.compare_at_price)!)}
                           </span>
                         )}
                       </p>
@@ -350,7 +353,7 @@ export default function CartDrawer() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-ink">{formatPrice(item.price * item.qty)}</span>
+                        <span className="text-sm font-medium text-ink">{money(item.price * item.qty)}</span>
                         <button
                           onClick={() => removeItem(item.id)}
                           aria-label={`Remove ${item.title}`}
@@ -368,12 +371,12 @@ export default function CartDrawer() {
             <div className="border-t border-stone-200 bg-white/60 px-6 py-5">
               <div className="mb-1 flex items-center justify-between text-sm text-stone-600">
                 <span>Subtotal</span>
-                <span className="text-base font-medium text-ink">{formatPrice(subtotal)}</span>
+                <span className="text-base font-medium text-ink">{money(subtotal)}</span>
               </div>
               {totalSavings > 0 && (
                 <div className="mb-1 flex items-center justify-between text-sm">
                   <span className="text-stone-600">You save</span>
-                  <span className="font-medium text-emerald-700">{formatPrice(totalSavings)}</span>
+                  <span className="font-medium text-emerald-700">{money(totalSavings)}</span>
                 </div>
               )}
               <div className="mb-4 flex items-center justify-between text-sm text-stone-600">
@@ -401,7 +404,7 @@ export default function CartDrawer() {
                   <span>
                     {count} item{count > 1 ? 's' : ''}
                   </span>
-                  <span className="font-medium text-ink">{formatPrice(subtotal)}</span>
+                  <span className="font-medium text-ink">{money(subtotal)}</span>
                 </div>
               </div>
 

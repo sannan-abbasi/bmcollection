@@ -16,6 +16,7 @@ import {
 } from '@/lib/payments';
 import { useToast } from '@/lib/toast';
 import { useCart, FREE_DELIVERY_THRESHOLD } from '@/lib/cart';
+import { useCurrency } from '@/lib/currency';
 import { ArrowLeft, Check, MessageCircle, Minus, Plus, ShoppingCart, Sparkles, Truck } from 'lucide-react';
 import ProductReviews from '@/components/ProductReviews';
 import emailjs from '@emailjs/browser';
@@ -45,6 +46,7 @@ export default function ProductDetail() {
   const navigate = useNavigate();
   const { notify } = useToast();
   const { addItem, openCart } = useCart();
+  const { format: money, billedPkr, isInternational, code: currencyCode } = useCurrency();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOrder, setShowOrder] = useState(false);
@@ -164,7 +166,7 @@ export default function ProductDetail() {
     const orderPayload = {
       product_id: product.id,
       product_title: qty > 1 ? `${product.title} x${qty}` : product.title,
-      product_price: product.price * qty,
+      product_price: billedPkr(product.price) * qty,
       customer_name: form.customer_name,
       email: form.email,
       phone: form.phone,
@@ -172,6 +174,7 @@ export default function ProductDetail() {
       address: form.address,
       street: form.street || null,
       notes: [
+        isInternational ? `Shown to customer in ${currencyCode}: ${money(product.price * qty)}` : null,
         `Payment: ${PAYMENT_METHOD_LABELS[paymentMethod]}${
           paymentProof ? ' — screenshot attached (see admin dashboard)' : ''
         }`,
@@ -318,10 +321,10 @@ export default function ProductDetail() {
             <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl text-ink mb-4">{product.title}</h1>
 
             <div className="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-2">
-              <span className="text-2xl font-sans font-light text-ink">{formatPrice(product.price)}</span>
+              <span className="text-2xl font-sans font-light text-ink">{money(product.price)}</span>
               {wasPrice !== null && (
                 <span className="text-lg font-sans font-light text-stone-400 line-through">
-                  {formatPrice(wasPrice)}
+                  {money(wasPrice)}
                 </span>
               )}
               {discount !== null && (
@@ -344,7 +347,7 @@ export default function ProductDetail() {
               </div>
               <div className="flex items-center gap-3">
                 <Truck className="h-4 w-4 text-gold" /> Free delivery on orders of{' '}
-                {formatPrice(FREE_DELIVERY_THRESHOLD)} and above
+                {money(FREE_DELIVERY_THRESHOLD)} and above
               </div>
             </div>
 

@@ -4,6 +4,7 @@ import gsap from 'gsap';
 import { Menu, X, Instagram, ShoppingCart, ChevronDown } from 'lucide-react';
 import { supabase, BRAND } from '@/lib/supabase';
 import { useCart } from '@/lib/cart';
+import { useCurrency, SELECTABLE } from '@/lib/currency';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import type { Category } from '@/lib/types';
 
@@ -16,6 +17,7 @@ export default function Navbar() {
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const location = useLocation();
   const { count, openCart, lastAddedAt } = useCart();
+  const { code: currencyCode, setCode: setCurrency } = useCurrency();
   const badgeRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -190,6 +192,24 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-5">
+            {/* Display currency — auto-detected, but the shopper can override */}
+            <label className="hidden sm:flex items-center" title="Display currency">
+              <span className="sr-only">Display currency</span>
+              <select
+                value={currencyCode}
+                onChange={(e) => setCurrency(e.target.value)}
+                className={`cursor-pointer bg-transparent text-xs uppercase tracking-widest outline-none transition-colors ${
+                  onDark ? 'text-cream/70 hover:text-gold-light' : 'text-stone-500 hover:text-gold'
+                }`}
+              >
+                {SELECTABLE.map((c) => (
+                  <option key={c} value={c} className="text-ink">
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <Link
               to="/admin"
               className={`hidden md:block text-xs uppercase tracking-widest transition-colors ${
