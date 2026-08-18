@@ -51,7 +51,7 @@ export default function CartDrawer() {
   const [submitting, setSubmitting] = useState(false);
   const [orderRef, setOrderRef] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>(DEFAULT_PAYMENT_METHOD);
-  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentProof, setPaymentProof] = useState<string | null>(null);
 
   // Reset back to the cart view a moment after the drawer closes.
   useEffect(() => {
@@ -59,7 +59,7 @@ export default function CartDrawer() {
     const t = setTimeout(() => {
       setStep((s) => (s === 'done' ? 'cart' : s));
       setPaymentMethod(DEFAULT_PAYMENT_METHOD);
-      setPaymentReference('');
+      setPaymentProof(null);
     }, 400);
     return () => clearTimeout(t);
   }, [isOpen]);
@@ -90,6 +90,10 @@ export default function CartDrawer() {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return;
+    if (methodById(paymentMethod)?.requiresProof && !paymentProof) {
+      notify('Please attach a screenshot of your payment first.', 'error');
+      return;
+    }
     setSubmitting(true);
 
     const ref = 'BM-' + Date.now().toString(36).toUpperCase().slice(-6);
@@ -100,7 +104,7 @@ export default function CartDrawer() {
       ? 'FREE DELIVERY (order qualifies)'
       : 'Delivery charges apply (order below free-delivery threshold)';
     const paymentLine = `Payment: ${PAYMENT_METHOD_LABELS[paymentMethod]}${
-      paymentReference ? ` — TID ${paymentReference}` : ''
+      paymentProof ? ' — screenshot attached (see admin dashboard)' : ''
     }`;
     const sharedNotes = [
       `Order Ref: ${ref}`,
@@ -130,7 +134,8 @@ export default function CartDrawer() {
       status: 'pending',
       payment_method: paymentMethod,
       payment_status: initialPaymentStatus(paymentMethod),
-      payment_reference: paymentReference.trim() || null,
+      payment_reference: null,
+      payment_proof_path: paymentProof,
     }));
 
     const { error } = await insertOrders(rows);
@@ -258,7 +263,7 @@ export default function CartDrawer() {
             </p>
             <p className="mb-2 text-sm text-stone-600">
               Paying by <span className="font-medium text-ink">{PAYMENT_METHOD_LABELS[paymentMethod]}</span>
-              {methodById(paymentMethod)?.requiresReference && (
+              {methodById(paymentMethod)?.requiresProof && (
                 <> — we will verify your transfer and confirm by phone.</>
               )}
             </p>
@@ -465,8 +470,8 @@ export default function CartDrawer() {
                 <PaymentMethodPicker
                   value={paymentMethod}
                   onChange={setPaymentMethod}
-                  reference={paymentReference}
-                  onReferenceChange={setPaymentReference}
+                  proofPath={paymentProof}
+                  onProofChange={setPaymentProof}
                 />
               </div>
 

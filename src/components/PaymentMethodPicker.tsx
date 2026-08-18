@@ -5,6 +5,7 @@ import {
   type PaymentMethodId,
   type TransferDetail,
 } from '@/lib/payments';
+import PaymentProofUpload from '@/components/PaymentProofUpload';
 
 const ICONS: Record<PaymentMethodId, typeof Truck> = {
   cod: Truck,
@@ -16,13 +17,13 @@ const ICONS: Record<PaymentMethodId, typeof Truck> = {
 export default function PaymentMethodPicker({
   value,
   onChange,
-  reference,
-  onReferenceChange,
+  proofPath,
+  onProofChange,
 }: {
   value: PaymentMethodId;
   onChange: (id: PaymentMethodId) => void;
-  reference: string;
-  onReferenceChange: (v: string) => void;
+  proofPath: string | null;
+  onProofChange: (path: string | null) => void;
 }) {
   const selected = PAYMENT_METHODS.find((m) => m.id === value) ?? PAYMENT_METHODS[0];
 
@@ -92,23 +93,8 @@ export default function PaymentMethodPicker({
         </div>
       )}
 
-      {selected?.requiresReference && (
-        <label className="block">
-          <span className="mb-2 block text-xs uppercase tracking-widest text-stone-500">
-            Transaction ID <span className="text-gold">*</span>
-          </span>
-          <input
-            type="text"
-            required
-            value={reference}
-            onChange={(e) => onReferenceChange(e.target.value)}
-            placeholder="e.g. 1234567890"
-            className="premium-input"
-          />
-          <span className="mt-1.5 block text-xs text-stone-500">
-            Complete the transfer first, then enter its reference so we can confirm your order.
-          </span>
-        </label>
+      {selected?.requiresProof && (
+        <PaymentProofUpload path={proofPath} onChange={onProofChange} />
       )}
     </div>
   );

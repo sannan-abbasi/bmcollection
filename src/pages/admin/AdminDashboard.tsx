@@ -750,6 +750,12 @@ function OrdersTab({
                       {o.street && <div><dt className="inline text-stone-500">Street: </dt><dd className="inline text-ink">{o.street}</dd></div>}
                       {o.notes && <div><dt className="inline text-stone-500">Notes: </dt><dd className="inline text-ink">{o.notes}</dd></div>}
                     </dl>
+                    {o.payment_proof_path && (
+                      <div className="mb-3">
+                        <p className="text-xs text-stone-500 mb-1">Payment screenshot</p>
+                        <PaymentProof path={o.payment_proof_path} />
+                      </div>
+                    )}
                   </div>
                   <div>
                     <h4 className="text-xs uppercase tracking-widest text-stone-400 mb-2">Update Status</h4>
@@ -822,5 +828,43 @@ function OrdersTab({
         ))}
       </div>
     </div>
+  );
+}
+/* ============ PAYMENT PROOF ============ */
+
+/**
+ * The payment-proofs bucket is private, so the screenshot is fetched through a
+ * short-lived signed URL rather than a public link. Only the admin session can
+ * mint one.
+ */
+function PaymentProof({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.storage
+      .from('payment-proofs')
+      .createSignedUrl(path, 60 * 60)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || !data) { setFailed(true); return; }
+        setUrl(data.signedUrl);
+      });
+    return () => { cancelled = true; };
+  }, [path]);
+
+  if (failed) return <p className="text-sm text-red-600">Could not load the screenshot.</p>;
+  if (!url) return <p className="text-sm text-stone-500">Loading screenshot…</p>;
+
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="inline-block">
+      <img
+        src={url}
+        alt="Customer payment screenshot"
+        className="max-h-64 rounded border border-stone-200 bg-white object-contain hover:border-gold transition-colors"
+      />
+      <span className="mt-1 block text-xs text-gold">Open full size</span>
+    </a>
   );
 }

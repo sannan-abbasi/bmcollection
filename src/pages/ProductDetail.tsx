@@ -53,7 +53,7 @@ export default function ProductDetail() {
   const [ordered, setOrdered] = useState(false);
   const [qty, setQty] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>(DEFAULT_PAYMENT_METHOD);
-  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentProof, setPaymentProof] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -154,6 +154,11 @@ export default function ProductDetail() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
+    // Manual transfers must have a screenshot attached before we take the order.
+    if (methodById(paymentMethod)?.requiresProof && !paymentProof) {
+      notify('Please attach a screenshot of your payment first.', 'error');
+      return;
+    }
     setSubmitting(true);
 
     const orderPayload = {
@@ -168,7 +173,7 @@ export default function ProductDetail() {
       street: form.street || null,
       notes: [
         `Payment: ${PAYMENT_METHOD_LABELS[paymentMethod]}${
-          paymentReference ? ` — TID ${paymentReference}` : ''
+          paymentProof ? ' — screenshot attached (see admin dashboard)' : ''
         }`,
         form.notes || null,
       ]
@@ -177,7 +182,8 @@ export default function ProductDetail() {
       status: 'pending',
       payment_method: paymentMethod,
       payment_status: initialPaymentStatus(paymentMethod),
-      payment_reference: paymentReference.trim() || null,
+      payment_reference: null,
+      payment_proof_path: paymentProof,
     };
 
     const { error } = await insertOrders([orderPayload]);
@@ -205,7 +211,7 @@ export default function ProductDetail() {
           street: form.street || 'None',
           notes: [
             `Payment: ${PAYMENT_METHOD_LABELS[paymentMethod]}${
-              paymentReference ? ` — TID ${paymentReference}` : ''
+              paymentProof ? ' — screenshot attached (see admin dashboard)' : ''
             }`,
             form.notes || null,
           ]
@@ -257,7 +263,7 @@ export default function ProductDetail() {
           </p>
           <p className="text-stone-600 leading-relaxed mb-8">
             Paying by <span className="font-medium text-ink">{PAYMENT_METHOD_LABELS[paymentMethod]}</span>
-            {methodById(paymentMethod)?.requiresReference && ' — we will verify your transfer before dispatch.'}
+            {methodById(paymentMethod)?.requiresProof && ' — we will verify your transfer before dispatch.'}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/" className="text-sm uppercase tracking-widest border border-stone-300 px-6 py-3 hover:border-gold hover:text-gold transition-all">
@@ -477,8 +483,8 @@ export default function ProductDetail() {
                   <PaymentMethodPicker
                     value={paymentMethod}
                     onChange={setPaymentMethod}
-                    reference={paymentReference}
-                    onReferenceChange={setPaymentReference}
+                    proofPath={paymentProof}
+                    onProofChange={setPaymentProof}
                   />
                 </div>
 

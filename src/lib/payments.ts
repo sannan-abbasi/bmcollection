@@ -46,8 +46,8 @@ export interface PaymentMethod {
   id: PaymentMethodId;
   label: string;
   blurb: string;
-  /** Manual transfers ask the customer for the transaction ID afterwards. */
-  requiresReference: boolean;
+  /** Manual transfers ask the customer for a screenshot of the transfer. */
+  requiresProof: boolean;
   details: TransferDetail[];
 }
 
@@ -56,14 +56,14 @@ const ALL_METHODS: PaymentMethod[] = [
     id: 'cod',
     label: 'Cash on Delivery',
     blurb: 'Pay the courier in cash when your parcel arrives.',
-    requiresReference: false,
+    requiresProof: false,
     details: [],
   },
   {
     id: 'bank',
     label: 'Bank Transfer',
-    blurb: 'Transfer to our account, then enter the transaction ID below.',
-    requiresReference: true,
+    blurb: 'Transfer to our account, then attach a screenshot of the transfer.',
+    requiresProof: true,
     details: [
       { label: 'Bank', value: ACCOUNTS.bank.bankName },
       { label: 'Account Title', value: ACCOUNTS.bank.accountTitle },
@@ -74,8 +74,8 @@ const ALL_METHODS: PaymentMethod[] = [
   {
     id: 'jazzcash',
     label: 'JazzCash',
-    blurb: 'Send the amount to our JazzCash account, then enter the TID below.',
-    requiresReference: true,
+    blurb: 'Send the amount to our JazzCash account, then attach a screenshot of the transfer.',
+    requiresProof: true,
     details: [
       { label: 'Account Title', value: ACCOUNTS.jazzcash.accountTitle },
       { label: 'JazzCash Number', value: ACCOUNTS.jazzcash.mobileNumber, copyable: true },
@@ -84,8 +84,8 @@ const ALL_METHODS: PaymentMethod[] = [
   {
     id: 'easypaisa',
     label: 'Easypaisa',
-    blurb: 'Send the amount to our Easypaisa account, then enter the TID below.',
-    requiresReference: true,
+    blurb: 'Send the amount to our Easypaisa account, then attach a screenshot of the transfer.',
+    requiresProof: true,
     details: [
       { label: 'Account Title', value: ACCOUNTS.easypaisa.accountTitle },
       { label: 'Easypaisa Number', value: ACCOUNTS.easypaisa.mobileNumber, copyable: true },

@@ -1,7 +1,12 @@
 import { supabase } from '@/lib/supabase';
 
 /** The payment columns added by 20260817120000_add_payment_fields.sql. */
-const PAYMENT_COLUMNS = ['payment_method', 'payment_status', 'payment_reference'] as const;
+const PAYMENT_COLUMNS = [
+  'payment_method',
+  'payment_status',
+  'payment_reference',
+  'payment_proof_path',
+] as const;
 
 /**
  * A missing column surfaces under two different codes depending on the path:

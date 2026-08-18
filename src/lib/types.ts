@@ -42,6 +42,7 @@ export interface Order {
   payment_method?: string; // cod | bank | jazzcash | easypaisa
   payment_status?: string; // unpaid | awaiting_verification | paid
   payment_reference?: string | null;
+  payment_proof_path?: string | null;
   created_at: string;
 }
 
