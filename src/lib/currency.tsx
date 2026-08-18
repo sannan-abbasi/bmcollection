@@ -35,6 +35,7 @@ const RATES_FALLBACK =
  * country for hours. Within one session it is only looked up once.
  */
 const GEO_KEY = 'bm-geo';
+const CHOICE_KEY = 'bm-currency';
 const RATES_KEY = 'bm-rates';
 const RATES_TTL = 24 * 60 * 60 * 1000; // rates publish once a day
 
@@ -48,6 +49,9 @@ const COUNTRY_CURRENCY: Record<string, string> = {
   DE: 'EUR', FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', BE: 'EUR',
   AT: 'EUR', IE: 'EUR', PT: 'EUR', GR: 'EUR', FI: 'EUR',
 };
+
+/** Offered in the switcher, alongside whatever was detected. */
+export const SELECTABLE = ['PKR', 'GBP', 'USD', 'EUR', 'AED', 'SAR', 'CAD', 'AUD'];
 
 /** Currencies with no minor unit — never show .99 on these. */
 const ZERO_DECIMAL = new Set(['JPY', 'KRW', 'PKR', 'IDR', 'VND', 'CLP', 'ISK']);
@@ -77,6 +81,22 @@ function readCountry(): string | null {
     return sessionStorage.getItem(GEO_KEY);
   } catch {
     return null;
+  }
+}
+
+function readChoice(): string | null {
+  try {
+    return sessionStorage.getItem(CHOICE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveChoice(code: string) {
+  try {
+    sessionStorage.setItem(CHOICE_KEY, code);
+  } catch {
+    // ignore
   }
 }
 
@@ -175,6 +195,10 @@ interface CurrencyValue {
   billedPkr: (pkr: number) => number;
   /** Always format as rupees, whatever the display currency is. */
   formatPkr: (pkr: number) => string;
+  /** Currencies the shopper can switch to. */
+  options: string[];
+  /** Switch currency by hand; lasts for this browsing session. */
+  setCode: (code: string) => void;
 }
 
 const CurrencyContext = createContext<CurrencyValue | undefined>(undefined);
@@ -182,6 +206,7 @@ const CurrencyContext = createContext<CurrencyValue | undefined>(undefined);
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [country, setCountry] = useState<string | null>(readCountry);
   const [rates, setRates] = useState<Record<string, number> | null>(readRates);
+  const [chosen, setChosen] = useState<string | null>(readChoice);
 
   useEffect(() => {
     if (country) return;
@@ -197,7 +222,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }, [country]);
 
   // Only fetch rates once we know the shopper is not in Pakistan.
-  const needsRates = country !== null && country !== HOME_COUNTRY;
+  const needsRates =
+    (chosen !== null && chosen !== HOME_CURRENCY) || (country !== null && country !== HOME_COUNTRY);
 
   useEffect(() => {
     if (!needsRates || rates) return;
@@ -213,7 +239,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }, [needsRates, rates]);
 
   const value = useMemo<CurrencyValue>(() => {
-    const wanted = country ? COUNTRY_CURRENCY[country] ?? 'USD' : HOME_CURRENCY;
+    const detected = country ? COUNTRY_CURRENCY[country] ?? 'USD' : HOME_CURRENCY;
+    const wanted = chosen ?? detected;
     const rate = wanted === HOME_CURRENCY ? null : rates?.[wanted] ?? null;
     // With no rate we stay in rupees — never guess at a price.
     const code = rate ? wanted : HOME_CURRENCY;
@@ -242,8 +269,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       billedPkr: (pkr: number) =>
         international ? Math.round((Number(pkr) || 0) * INTERNATIONAL_MARKUP) : Number(pkr) || 0,
       formatPkr: formatPkrAmount,
+      options: Array.from(new Set([detected, ...SELECTABLE])),
+      setCode: (next: string) => {
+        saveChoice(next);
+        setChosen(next);
+      },
     };
-  }, [country, rates]);
+  }, [country, rates, chosen]);
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
 }
