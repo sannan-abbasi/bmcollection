@@ -30,7 +30,7 @@ const RATES_FALLBACK =
 const GEO_KEY = 'bm-geo';
 const RATES_KEY = 'bm-rates';
 const CHOICE_KEY = 'bm-currency';
-const GEO_TTL = 7 * 24 * 60 * 60 * 1000; // a shopper's country rarely changes
+const GEO_TTL = 6 * 60 * 60 * 1000; // short enough that travelling or a VPN is noticed
 const RATES_TTL = 24 * 60 * 60 * 1000; // rates publish once a day
 
 /** Country to currency for the markets this shop realistically reaches. */
@@ -48,7 +48,10 @@ const COUNTRY_CURRENCY: Record<string, string> = {
 const ZERO_DECIMAL = new Set(['JPY', 'KRW', 'PKR', 'IDR', 'VND', 'CLP', 'ISK']);
 
 /** What the shopper can pick from by hand. */
-export const SELECTABLE = ['PKR', 'GBP', 'USD', 'EUR', 'AED', 'SAR', 'CAD', 'AUD'];
+export const AUTO = 'AUTO';
+
+/** What the shopper can pick. AUTO hands control back to country detection. */
+export const SELECTABLE = [AUTO, 'PKR', 'GBP', 'USD', 'EUR', 'AED', 'SAR', 'CAD', 'AUD'];
 
 interface Cached<T> {
   at: number;
@@ -162,7 +165,9 @@ interface CurrencyValue {
   billedPkr: (pkr: number) => number;
   /** Always format as rupees, whatever the display currency is. */
   formatPkr: (pkr: number) => string;
-  /** Let the shopper choose. Pass null to go back to automatic. */
+  /** What the switcher should display: a currency code, or AUTO. */
+  selection: string;
+  /** Pass a currency code, or AUTO/null to hand back to detection. */
   setCode: (code: string | null) => void;
 }
 
@@ -213,13 +218,21 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }, [wantsConversion, rates]);
 
   const setCode = useCallback((code: string | null) => {
+    const auto = !code || code === AUTO;
     try {
-      if (code) localStorage.setItem(CHOICE_KEY, code);
-      else localStorage.removeItem(CHOICE_KEY);
+      if (auto) {
+        localStorage.removeItem(CHOICE_KEY);
+        // Drop the cached country too, so switching back to automatic re-checks
+        // straight away rather than waiting for the cache to age out.
+        localStorage.removeItem(GEO_KEY);
+      } else {
+        localStorage.setItem(CHOICE_KEY, code);
+      }
     } catch {
       // ignore
     }
-    setChosen(code);
+    setChosen(auto ? null : code);
+    if (auto) setCountry(null);
   }, []);
 
   const value = useMemo<CurrencyValue>(() => {
@@ -254,6 +267,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       billedPkr: (pkr: number) =>
         international ? Math.round((Number(pkr) || 0) * INTERNATIONAL_MARKUP) : Number(pkr) || 0,
       formatPkr: formatPkrAmount,
+      selection: chosen ?? AUTO,
       setCode,
     };
   }, [country, chosen, rates, setCode]);
