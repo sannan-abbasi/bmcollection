@@ -5,7 +5,7 @@ import emailjs from '@emailjs/browser';
 import { Check, MessageCircle, Minus, Plus, ShoppingBag, Trash2, Truck, X } from 'lucide-react';
 import { insertOrders } from '@/lib/orders';
 import { useCart, FREE_DELIVERY_THRESHOLD } from '@/lib/cart';
-import { useCurrency } from '@/lib/currency';
+import { useCurrency, formatPkrAmount } from '@/lib/currency';
 import { buildEnquiryUrl } from '@/lib/enquiry';
 import { useToast } from '@/lib/toast';
 import { comparePriceOf, savingsOf } from '@/lib/pricing';
@@ -161,7 +161,7 @@ export default function CartDrawer() {
         'template_krdl205',
         {
           product_title: `Cart Order — ${count} item${count > 1 ? 's' : ''} (${ref})`,
-          product_price: money(subtotal),
+          product_price: formatPkrAmount(billedSubtotal),
           customer_name: form.customer_name,
           phone: form.phone,
           email: form.email,
@@ -191,6 +191,8 @@ export default function CartDrawer() {
   });
 
   const progressPct = Math.min(100, (subtotal / FREE_DELIVERY_THRESHOLD) * 100);
+  // What the admin is actually owed, in rupees, markup included.
+  const billedSubtotal = items.reduce((sum, i) => sum + billedPkr(i.price) * i.qty, 0);
   const totalSavings = items.reduce(
     (sum, i) => sum + savingsOf(i.price, i.compare_at_price, i.qty),
     0
@@ -406,33 +408,33 @@ export default function CartDrawer() {
                 </span>
               </div>
 
+              {/* Checkout is available everywhere. Overseas shoppers also get a
+                  WhatsApp route, since shipping and payment need arranging. */}
+              <button
+                onClick={() => setStep('checkout')}
+                className="w-full bg-ink py-4 text-sm uppercase tracking-widest text-cream transition-all duration-300 hover:bg-gold"
+              >
+                Proceed to Checkout
+              </button>
+
               {isInternational ? (
                 <>
                   <a
                     href={enquiryUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex w-full items-center justify-center gap-2 bg-ink py-4 text-sm uppercase tracking-widest text-cream transition-colors duration-300 hover:bg-gold"
+                    className="mt-3 flex w-full items-center justify-center gap-2 border border-stone-300 py-3.5 text-sm uppercase tracking-widest text-ink transition-colors duration-300 hover:border-gold hover:text-gold"
                   >
-                    <MessageCircle className="h-4 w-4" /> Order on WhatsApp
+                    <MessageCircle className="h-4 w-4" /> Or order on WhatsApp
                   </a>
                   <p className="mt-3 text-center text-[11px] leading-relaxed tracking-wide text-stone-500">
-                    We ship from Pakistan. International orders are arranged personally —
-                    we will confirm delivery and payment with you.
+                    We ship from Pakistan — delivery to your country is confirmed after you order.
                   </p>
                 </>
               ) : (
-                <>
-                  <button
-                    onClick={() => setStep('checkout')}
-                    className="w-full bg-ink py-4 text-sm uppercase tracking-widest text-cream transition-all duration-300 hover:bg-gold"
-                  >
-                    Proceed to Checkout
-                  </button>
-                  <p className="mt-3 text-center text-[11px] tracking-wide text-stone-500">
-                    Cash on delivery available across Pakistan
-                  </p>
-                </>
+                <p className="mt-3 text-center text-[11px] tracking-wide text-stone-500">
+                  Cash on delivery available across Pakistan
+                </p>
               )}
             </div>
           </>

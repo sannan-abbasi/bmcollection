@@ -206,7 +206,7 @@ export default function ProductDetail() {
         'template_krdl205',
         {
           product_title: qty > 1 ? `${product.title} x${qty}` : product.title,
-          product_price: formatPrice(product.price * qty),
+          product_price: formatPrice(billedPkr(product.price) * qty),
           customer_name: form.customer_name,
           phone: form.phone,
           email: form.email,
@@ -400,32 +400,27 @@ export default function ProductDetail() {
                   >
                     <ShoppingCart className="h-4 w-4" /> Add to Bag
                   </button>
-                  {isInternational ? (
-                    <a
-                      href={buildEnquiryUrl({
-                        lines: [{ title: product.title, qty, price: money(product.price * qty) }],
-                        total: money(product.price * qty),
-                        currency: currencyCode,
-                        country,
-                      })}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex flex-1 items-center justify-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-colors duration-300"
-                    >
-                      <MessageCircle className="h-4 w-4" /> Order on WhatsApp
-                    </a>
-                  ) : (
-                    <button
-                      onClick={() => setShowOrder(true)}
-                      className="flex flex-1 items-center justify-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-all duration-300"
-                    >
-                      Buy Now
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setShowOrder(true)}
+                    className="flex flex-1 items-center justify-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-all duration-300"
+                  >
+                    Buy Now
+                  </button>
                 </div>
 
                 <a
-                  href={`${BRAND.whatsappLink}?text=${encodeURIComponent(`Hi, I'm interested in ${product.title} (${formatPrice(product.price)}).`)}`}
+                  href={
+                    isInternational
+                      ? buildEnquiryUrl({
+                          lines: [{ title: product.title, qty, price: money(product.price * qty) }],
+                          total: money(product.price * qty),
+                          currency: currencyCode,
+                          country,
+                        })
+                      : `${BRAND.whatsappLink}?text=${encodeURIComponent(
+                          `Hi, I'm interested in ${product.title} (${money(product.price)}).`
+                        )}`
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center justify-center gap-2 border border-stone-300 text-ink px-8 py-4 text-sm uppercase tracking-widest hover:border-gold hover:text-gold transition-all duration-300"

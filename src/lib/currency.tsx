@@ -21,7 +21,8 @@ export const INTERNATIONAL_MARKUP = 2.5;
 export const HOME_COUNTRY = 'PK';
 export const HOME_CURRENCY = 'PKR';
 
-const GEO_URL = 'https://ipwho.is/';
+const GEO_URL = 'https://ipinfo.io/json';
+const GEO_FALLBACK = 'https://ipwho.is/';
 const RATES_URL = 'https://open.er-api.com/v6/latest/PKR';
 const RATES_FALLBACK =
   'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/pkr.json';
@@ -99,15 +100,32 @@ async function fetchRates(): Promise<Record<string, number> | null> {
   return null;
 }
 
+/** ipinfo returns `country`, ipwho returns `country_code` — both are ISO-2. */
+function readCountryCode(json: unknown): string | null {
+  const obj = json as Record<string, unknown> | null;
+  const raw = (obj?.country ?? obj?.country_code) as unknown;
+  if (typeof raw !== 'string') return null;
+  const code = raw.toUpperCase();
+  return /^[A-Z]{2}$/.test(code) ? code : null;
+}
+
+/**
+ * ipinfo is the primary lookup. Its keyless tier is rate limited, so ipwho.is
+ * stands in if it ever refuses — and if both fail we stay in rupees rather than
+ * guess at a shopper's currency.
+ */
 async function fetchCountry(): Promise<string | null> {
-  try {
-    const res = await fetch(GEO_URL);
-    const json = await res.json();
-    const code = typeof json?.country_code === 'string' ? json.country_code.toUpperCase() : null;
-    return code && /^[A-Z]{2}$/.test(code) ? code : null;
-  } catch {
-    return null;
+  for (const url of [GEO_URL, GEO_FALLBACK]) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const code = readCountryCode(await res.json());
+      if (code) return code;
+    } catch {
+      // try the next one
+    }
   }
+  return null;
 }
 
 /**
