@@ -6,6 +6,10 @@
 
 @layer base {
   :root {
+    /* Keeps the site light even when the OS or browser is in dark mode. */
+    /* `only` is the keyword that actually opts out of Chrome auto-dark;
+       plain `light` is still overridden. */
+    color-scheme: only light;
     --color-ink: #1a1614;
     --color-cream: #f7f3ee;
     --color-gold: #b8995a;

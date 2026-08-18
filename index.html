@@ -10,7 +10,12 @@
     <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#1a1614" />
+    <!-- Declaring a colour scheme opts the site out of Chrome's "auto dark
+         theme", which otherwise inverts the cream palette to near-black on
+         Android. darkreader-lock does the same for the Dark Reader extension. -->
+    <meta name="color-scheme" content="only light" />
+    <meta name="darkreader-lock" />
+    <meta name="theme-color" content="#f7f3ee" />
 
     <!--
       Defaults only. Every page overwrites the title, description, canonical and
