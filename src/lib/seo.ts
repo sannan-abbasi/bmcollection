@@ -34,6 +34,9 @@ export function absoluteUrl(path: string): string | null {
   return SITE_URL + (path.startsWith('/') ? path : `/${path}`);
 }
 
+/** Used for share previews on pages with no image of their own. */
+export const DEFAULT_SHARE_IMAGE = "/logo.png";
+
 const TITLE_SUFFIX = ` | ${BRAND.name}`;
 const MAX_DESCRIPTION = 160;
 
@@ -147,9 +150,10 @@ export function useSeo(options: SeoOptions) {
     if (canonical) upsertMeta('property', 'og:url', canonical);
     else removeMeta('property', 'og:url');
 
-    if (image) {
-      upsertMeta('property', 'og:image', image);
-      upsertMeta('name', 'twitter:image', image);
+    const shareImage = image || absoluteUrl(DEFAULT_SHARE_IMAGE);
+    if (shareImage) {
+      upsertMeta('property', 'og:image', shareImage);
+      upsertMeta('name', 'twitter:image', shareImage);
     } else {
       removeMeta('property', 'og:image');
       removeMeta('name', 'twitter:image');

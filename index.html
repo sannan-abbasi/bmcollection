@@ -2,7 +2,13 @@
 <html lang="en-PK">
   <head>
     <meta charset="UTF-8" />
+    <!-- Google and most crawlers request /favicon.ico first; a real file must
+         exist there or the SPA catch-all answers with HTML. 48px is the size
+         Google recommends (multiples of 48). -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1a1614" />
 
@@ -24,6 +30,7 @@
       property="og:description"
       content="Shop jewellery, clothing, bags &amp; accessories online at BM Collection — Pakistan's No.1 online store. Cash on delivery, free delivery over Rs 5,000."
     />
+    <meta property="og:image" content="https://bmcollections.com/logo.png" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <!-- Product images and fonts come from these origins; warm the connections early. -->
