@@ -193,7 +193,7 @@ export default function Navbar() {
 
           <div className="flex items-center gap-5">
             {/* Display currency — auto-detected, but the shopper can override */}
-            <label className="hidden sm:flex items-center" title="Display currency">
+            <label className="flex items-center" title="Display currency">
               <span className="sr-only">Display currency</span>
               <select
                 value={currencyCode}
@@ -324,6 +324,21 @@ export default function Navbar() {
           >
             Admin
           </Link>
+
+          <label className="mt-2 flex flex-col items-center gap-2">
+            <span className="text-xs uppercase tracking-widest text-stone-400">Show prices in</span>
+            <select
+              value={currencyCode}
+              onChange={(e) => setCurrency(e.target.value)}
+              className="border border-cream/30 bg-transparent px-4 py-2 text-sm uppercase tracking-widest text-cream outline-none"
+            >
+              {SELECTABLE.map((c) => (
+                <option key={c} value={c} className="text-ink">
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <div className="flex gap-6 mt-4">
             <a
