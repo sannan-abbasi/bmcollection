@@ -4,7 +4,6 @@ import gsap from 'gsap';
 import { Menu, X, Instagram, ShoppingCart, ChevronDown } from 'lucide-react';
 import { supabase, BRAND } from '@/lib/supabase';
 import { useCart } from '@/lib/cart';
-import { useCurrency, SELECTABLE, AUTO } from '@/lib/currency';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import type { Category } from '@/lib/types';
 
@@ -17,7 +16,6 @@ export default function Navbar() {
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const location = useLocation();
   const { count, openCart, lastAddedAt } = useCart();
-  const { selection: currencySelection, setCode: setCurrency } = useCurrency();
   const badgeRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -192,23 +190,6 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-5">
-            {/* Display currency — auto-detected, but the shopper can override */}
-            <label className="flex items-center" title="Display currency">
-              <span className="sr-only">Display currency</span>
-              <select
-                value={currencySelection}
-                onChange={(e) => setCurrency(e.target.value)}
-                className={`cursor-pointer bg-transparent text-xs uppercase tracking-widest outline-none transition-colors ${
-                  onDark ? 'text-cream/70 hover:text-gold-light' : 'text-stone-500 hover:text-gold'
-                }`}
-              >
-                {SELECTABLE.map((c) => (
-                  <option key={c} value={c} className="text-ink">
-                    {c === AUTO ? 'Auto' : c}
-                  </option>
-                ))}
-              </select>
-            </label>
 
             <Link
               to="/admin"
@@ -324,21 +305,6 @@ export default function Navbar() {
           >
             Admin
           </Link>
-
-          <label className="mt-2 flex flex-col items-center gap-2">
-            <span className="text-xs uppercase tracking-widest text-stone-400">Show prices in</span>
-            <select
-              value={currencySelection}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="border border-cream/30 bg-transparent px-4 py-2 text-sm uppercase tracking-widest text-cream outline-none"
-            >
-              {SELECTABLE.map((c) => (
-                <option key={c} value={c} className="text-ink">
-                  {c === AUTO ? 'Auto' : c}
-                </option>
-              ))}
-            </select>
-          </label>
 
           <div className="flex gap-6 mt-4">
             <a

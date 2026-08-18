@@ -1,12 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 
 /*
  * ═══════════════════════════════════════════════════════════════════════════
  *  INTERNATIONAL PRICING
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Prices are stored and charged in PKR. This module only changes what an
- * overseas visitor SEES — every order is still recorded in rupees.
+ * Prices are stored in PKR. An overseas shopper is shown their own currency
+ * automatically, worked out from their IP — nothing is asked of them and there
+ * is nothing for them to pick.
  *
  * A straight conversion reads wrong abroad: Rs 1,799 is about £4.78, which
  * looks like costume junk rather than jewellery. INTERNATIONAL_MARKUP lifts the
@@ -27,10 +28,14 @@ const RATES_URL = 'https://open.er-api.com/v6/latest/PKR';
 const RATES_FALLBACK =
   'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/pkr.json';
 
+/**
+ * The country is held in sessionStorage rather than localStorage on purpose.
+ * A shopper who changes network — travelling, or switching on a VPN — is
+ * re-detected next time they open the site, instead of being stuck with a stale
+ * country for hours. Within one session it is only looked up once.
+ */
 const GEO_KEY = 'bm-geo';
 const RATES_KEY = 'bm-rates';
-const CHOICE_KEY = 'bm-currency';
-const GEO_TTL = 6 * 60 * 60 * 1000; // short enough that travelling or a VPN is noticed
 const RATES_TTL = 24 * 60 * 60 * 1000; // rates publish once a day
 
 /** Country to currency for the markets this shop realistically reaches. */
@@ -47,34 +52,39 @@ const COUNTRY_CURRENCY: Record<string, string> = {
 /** Currencies with no minor unit — never show .99 on these. */
 const ZERO_DECIMAL = new Set(['JPY', 'KRW', 'PKR', 'IDR', 'VND', 'CLP', 'ISK']);
 
-/** What the shopper can pick from by hand. */
-export const AUTO = 'AUTO';
-
-/** What the shopper can pick. AUTO hands control back to country detection. */
-export const SELECTABLE = [AUTO, 'PKR', 'GBP', 'USD', 'EUR', 'AED', 'SAR', 'CAD', 'AUD'];
-
-interface Cached<T> {
-  at: number;
-  value: T;
-}
-
-function readCache<T>(key: string, ttl: number): T | null {
+function readRates(): Record<string, number> | null {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(RATES_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Cached<T>;
-    if (!parsed || Date.now() - parsed.at > ttl) return null;
+    const parsed = JSON.parse(raw) as { at: number; value: Record<string, number> };
+    if (!parsed || Date.now() - parsed.at > RATES_TTL) return null;
     return parsed.value;
   } catch {
     return null;
   }
 }
 
-function writeCache<T>(key: string, value: T) {
+function saveRates(value: Record<string, number>) {
   try {
-    localStorage.setItem(key, JSON.stringify({ at: Date.now(), value }));
+    localStorage.setItem(RATES_KEY, JSON.stringify({ at: Date.now(), value }));
   } catch {
-    // storage full or blocked — we simply refetch next time
+    // storage blocked — we simply look them up again next time
+  }
+}
+
+function readCountry(): string | null {
+  try {
+    return sessionStorage.getItem(GEO_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveCountry(code: string) {
+  try {
+    sessionStorage.setItem(GEO_KEY, code);
+  } catch {
+    // ignore
   }
 }
 
@@ -150,7 +160,7 @@ export function formatPkrAmount(pkr: number): string {
 }
 
 interface CurrencyValue {
-  /** The currency actually being displayed. */
+  /** The currency being displayed, worked out from the shopper's country. */
   code: string;
   /** True when the shopper is seeing something other than rupees. */
   isInternational: boolean;
@@ -165,33 +175,20 @@ interface CurrencyValue {
   billedPkr: (pkr: number) => number;
   /** Always format as rupees, whatever the display currency is. */
   formatPkr: (pkr: number) => string;
-  /** What the switcher should display: a currency code, or AUTO. */
-  selection: string;
-  /** Pass a currency code, or AUTO/null to hand back to detection. */
-  setCode: (code: string | null) => void;
 }
 
 const CurrencyContext = createContext<CurrencyValue | undefined>(undefined);
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const [country, setCountry] = useState<string | null>(() => readCache<string>(GEO_KEY, GEO_TTL));
-  const [rates, setRates] = useState<Record<string, number> | null>(() =>
-    readCache<Record<string, number>>(RATES_KEY, RATES_TTL)
-  );
-  const [chosen, setChosen] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem(CHOICE_KEY);
-    } catch {
-      return null;
-    }
-  });
+  const [country, setCountry] = useState<string | null>(readCountry);
+  const [rates, setRates] = useState<Record<string, number> | null>(readRates);
 
   useEffect(() => {
     if (country) return;
     let cancelled = false;
     fetchCountry().then((c) => {
       if (cancelled || !c) return;
-      writeCache(GEO_KEY, c);
+      saveCountry(c);
       setCountry(c);
     });
     return () => {
@@ -200,51 +197,31 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }, [country]);
 
   // Only fetch rates once we know the shopper is not in Pakistan.
-  const wantsConversion =
-    (chosen && chosen !== HOME_CURRENCY) ||
-    (!chosen && country !== null && country !== HOME_COUNTRY);
+  const needsRates = country !== null && country !== HOME_COUNTRY;
 
   useEffect(() => {
-    if (!wantsConversion || rates) return;
+    if (!needsRates || rates) return;
     let cancelled = false;
     fetchRates().then((r) => {
       if (cancelled || !r) return;
-      writeCache(RATES_KEY, r);
+      saveRates(r);
       setRates(r);
     });
     return () => {
       cancelled = true;
     };
-  }, [wantsConversion, rates]);
-
-  const setCode = useCallback((code: string | null) => {
-    const auto = !code || code === AUTO;
-    try {
-      if (auto) {
-        localStorage.removeItem(CHOICE_KEY);
-        // Drop the cached country too, so switching back to automatic re-checks
-        // straight away rather than waiting for the cache to age out.
-        localStorage.removeItem(GEO_KEY);
-      } else {
-        localStorage.setItem(CHOICE_KEY, code);
-      }
-    } catch {
-      // ignore
-    }
-    setChosen(auto ? null : code);
-    if (auto) setCountry(null);
-  }, []);
+  }, [needsRates, rates]);
 
   const value = useMemo<CurrencyValue>(() => {
-    const auto = country ? COUNTRY_CURRENCY[country] ?? 'USD' : HOME_CURRENCY;
-    const wanted = chosen ?? auto;
+    const wanted = country ? COUNTRY_CURRENCY[country] ?? 'USD' : HOME_CURRENCY;
     const rate = wanted === HOME_CURRENCY ? null : rates?.[wanted] ?? null;
     // With no rate we stay in rupees — never guess at a price.
     const code = rate ? wanted : HOME_CURRENCY;
+    const international = code !== HOME_CURRENCY;
 
     const format = (pkr: number) => {
       const amount = Number(pkr) || 0;
-      if (!rate || code === HOME_CURRENCY) return formatPkrAmount(amount);
+      if (!rate || !international) return formatPkrAmount(amount);
       const shown = shelfPrice(amount * rate, code);
       try {
         return new Intl.NumberFormat(undefined, {
@@ -257,8 +234,6 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const international = code !== HOME_CURRENCY;
-
     return {
       code,
       isInternational: international,
@@ -267,10 +242,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       billedPkr: (pkr: number) =>
         international ? Math.round((Number(pkr) || 0) * INTERNATIONAL_MARKUP) : Number(pkr) || 0,
       formatPkr: formatPkrAmount,
-      selection: chosen ?? AUTO,
-      setCode,
     };
-  }, [country, chosen, rates, setCode]);
+  }, [country, rates]);
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
 }
