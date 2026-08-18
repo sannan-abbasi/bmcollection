@@ -17,6 +17,7 @@ import {
 import { useToast } from '@/lib/toast';
 import { useCart, FREE_DELIVERY_THRESHOLD } from '@/lib/cart';
 import { useCurrency } from '@/lib/currency';
+import { buildEnquiryUrl } from '@/lib/enquiry';
 import { ArrowLeft, Check, MessageCircle, Minus, Plus, ShoppingCart, Sparkles, Truck } from 'lucide-react';
 import ProductReviews from '@/components/ProductReviews';
 import emailjs from '@emailjs/browser';
@@ -46,7 +47,7 @@ export default function ProductDetail() {
   const navigate = useNavigate();
   const { notify } = useToast();
   const { addItem, openCart } = useCart();
-  const { format: money, billedPkr, isInternational, code: currencyCode } = useCurrency();
+  const { format: money, billedPkr, isInternational, code: currencyCode, country } = useCurrency();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOrder, setShowOrder] = useState(false);
@@ -346,8 +347,10 @@ export default function ProductDetail() {
                 <Check className="h-4 w-4 text-gold" /> Cash on delivery available
               </div>
               <div className="flex items-center gap-3">
-                <Truck className="h-4 w-4 text-gold" /> Free delivery on orders of{' '}
-                {money(FREE_DELIVERY_THRESHOLD)} and above
+                <Truck className="h-4 w-4 text-gold" />{' '}
+                {isInternational
+                  ? 'Ships from Pakistan — delivery quoted on WhatsApp'
+                  : `Free delivery on orders of ${money(FREE_DELIVERY_THRESHOLD)} and above`}
               </div>
             </div>
 
@@ -397,12 +400,28 @@ export default function ProductDetail() {
                   >
                     <ShoppingCart className="h-4 w-4" /> Add to Bag
                   </button>
-                  <button
-                    onClick={() => setShowOrder(true)}
-                    className="flex flex-1 items-center justify-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-all duration-300"
-                  >
-                    Buy Now
-                  </button>
+                  {isInternational ? (
+                    <a
+                      href={buildEnquiryUrl({
+                        lines: [{ title: product.title, qty, price: money(product.price * qty) }],
+                        total: money(product.price * qty),
+                        currency: currencyCode,
+                        country,
+                      })}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex flex-1 items-center justify-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-colors duration-300"
+                    >
+                      <MessageCircle className="h-4 w-4" /> Order on WhatsApp
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => setShowOrder(true)}
+                      className="flex flex-1 items-center justify-center gap-2 bg-gold text-cream px-8 py-4 text-sm uppercase tracking-widest hover:bg-gold-dark transition-all duration-300"
+                    >
+                      Buy Now
+                    </button>
+                  )}
                 </div>
 
                 <a

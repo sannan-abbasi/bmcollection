@@ -2,10 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import emailjs from '@emailjs/browser';
-import { Check, Minus, Plus, ShoppingBag, Trash2, Truck, X } from 'lucide-react';
+import { Check, MessageCircle, Minus, Plus, ShoppingBag, Trash2, Truck, X } from 'lucide-react';
 import { insertOrders } from '@/lib/orders';
 import { useCart, FREE_DELIVERY_THRESHOLD } from '@/lib/cart';
 import { useCurrency } from '@/lib/currency';
+import { buildEnquiryUrl } from '@/lib/enquiry';
 import { useToast } from '@/lib/toast';
 import { comparePriceOf, savingsOf } from '@/lib/pricing';
 import { productPath } from '@/lib/slug';
@@ -44,7 +45,7 @@ export default function CartDrawer() {
   const { items, count, subtotal, freeDelivery, amountToFreeDelivery, isOpen, closeCart, setQty, removeItem, clearCart } =
     useCart();
   const { notify } = useToast();
-  const { format: money, billedPkr, isInternational, code: currencyCode } = useCurrency();
+  const { format: money, billedPkr, isInternational, code: currencyCode, country } = useCurrency();
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -179,6 +180,16 @@ export default function CartDrawer() {
     // confirmation screen can still tell the customer how they chose to pay.
   };
 
+  // Overseas shoppers cannot use cash on delivery or a Pakistani wallet, so the
+  // bag hands them to WhatsApp with the order written out instead of a checkout
+  // that could never be fulfilled.
+  const enquiryUrl = buildEnquiryUrl({
+    lines: items.map((i) => ({ title: i.title, qty: i.qty, price: money(i.price * i.qty) })),
+    total: money(subtotal),
+    currency: currencyCode,
+    country,
+  });
+
   const progressPct = Math.min(100, (subtotal / FREE_DELIVERY_THRESHOLD) * 100);
   const totalSavings = items.reduce(
     (sum, i) => sum + savingsOf(i.price, i.compare_at_price, i.qty),
@@ -229,7 +240,16 @@ export default function CartDrawer() {
         </div>
 
         {/* Free delivery meter */}
-        {step !== 'done' && (
+        {step !== 'done' && isInternational && (
+          <div className="border-b border-stone-200 bg-white/60 px-6 py-3">
+            <p className="flex items-start gap-2 text-xs leading-relaxed text-stone-600">
+              <Truck className="mt-0.5 h-4 w-4 flex-shrink-0 text-gold" />
+              <span>Shipping from Pakistan — we quote delivery for your country on WhatsApp.</span>
+            </p>
+          </div>
+        )}
+
+        {step !== 'done' && !isInternational && (
           <div className="border-b border-stone-200 bg-white/60 px-6 py-4">
             <div className="mb-2 flex items-center gap-2 text-xs tracking-wide text-stone-600">
               <Truck className={`h-4 w-4 ${freeDelivery ? 'text-emerald-600' : 'text-gold'}`} />
@@ -381,19 +401,39 @@ export default function CartDrawer() {
               )}
               <div className="mb-4 flex items-center justify-between text-sm text-stone-600">
                 <span>Delivery</span>
-                <span className={freeDelivery ? 'font-medium text-emerald-700' : 'text-stone-500'}>
-                  {freeDelivery ? 'Free' : 'Confirmed on call'}
+                <span className={freeDelivery && !isInternational ? 'font-medium text-emerald-700' : 'text-stone-500'}>
+                  {isInternational ? 'Quoted on WhatsApp' : freeDelivery ? 'Free' : 'Confirmed on call'}
                 </span>
               </div>
-              <button
-                onClick={() => setStep('checkout')}
-                className="w-full bg-ink py-4 text-sm uppercase tracking-widest text-cream transition-all duration-300 hover:bg-gold"
-              >
-                Proceed to Checkout
-              </button>
-              <p className="mt-3 text-center text-[11px] tracking-wide text-stone-500">
-                Cash on delivery available across Pakistan
-              </p>
+
+              {isInternational ? (
+                <>
+                  <a
+                    href={enquiryUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex w-full items-center justify-center gap-2 bg-ink py-4 text-sm uppercase tracking-widest text-cream transition-colors duration-300 hover:bg-gold"
+                  >
+                    <MessageCircle className="h-4 w-4" /> Order on WhatsApp
+                  </a>
+                  <p className="mt-3 text-center text-[11px] leading-relaxed tracking-wide text-stone-500">
+                    We ship from Pakistan. International orders are arranged personally —
+                    we will confirm delivery and payment with you.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setStep('checkout')}
+                    className="w-full bg-ink py-4 text-sm uppercase tracking-widest text-cream transition-all duration-300 hover:bg-gold"
+                  >
+                    Proceed to Checkout
+                  </button>
+                  <p className="mt-3 text-center text-[11px] tracking-wide text-stone-500">
+                    Cash on delivery available across Pakistan
+                  </p>
+                </>
+              )}
             </div>
           </>
         ) : (
