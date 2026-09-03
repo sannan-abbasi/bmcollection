@@ -43,6 +43,11 @@ export interface Order {
   payment_status?: string; // unpaid | awaiting_verification | paid
   payment_reference?: string | null;
   payment_proof_path?: string | null;
+  /**
+   * Advance delivery charge in rupees. A cart is stored as one row per line
+   * item and the fee is written on the first row only, so it is 0 on the rest.
+   */
+  delivery_fee?: number;
   created_at: string;
 }
 

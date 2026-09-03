@@ -19,11 +19,17 @@ export default function PaymentMethodPicker({
   onChange,
   proofPath,
   onProofChange,
+  amountDue,
 }: {
   value: PaymentMethodId;
   onChange: (id: PaymentMethodId) => void;
   proofPath: string | null;
   onProofChange: (path: string | null) => void;
+  /**
+   * Exact amount to transfer, already formatted. Worth showing because it
+   * includes the advance delivery charge, so it is not simply the subtotal.
+   */
+  amountDue?: string | null;
 }) {
   const selected = PAYMENT_METHODS.find((m) => m.id === value) ?? PAYMENT_METHODS[0];
 
@@ -90,6 +96,12 @@ export default function PaymentMethodPicker({
               <DetailRow key={detail.label} detail={detail} />
             ))}
           </dl>
+          {amountDue && (
+            <div className="mt-2.5 flex items-center justify-between gap-3 border-t border-stone-200 pt-2.5 text-sm">
+              <span className="text-stone-500">Amount to send</span>
+              <span className="font-medium text-ink">{amountDue}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -100,7 +112,7 @@ export default function PaymentMethodPicker({
   );
 }
 
-function DetailRow({ detail }: { detail: TransferDetail }) {
+export function DetailRow({ detail }: { detail: TransferDetail }) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {

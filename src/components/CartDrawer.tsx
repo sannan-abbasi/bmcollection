@@ -5,14 +5,22 @@ import emailjs from '@emailjs/browser';
 import { Check, MessageCircle, Minus, Plus, ShoppingBag, Trash2, Truck, X } from 'lucide-react';
 import { insertOrders } from '@/lib/orders';
 import { useCart, FREE_DELIVERY_THRESHOLD } from '@/lib/cart';
+import {
+  deliveryFeeFor,
+  deliveryZoneLabel,
+  OTHER_CITY_DELIVERY_FEE,
+  TWIN_CITY_DELIVERY_FEE,
+} from '@/lib/delivery';
 import { useCurrency, formatPkrAmount } from '@/lib/currency';
 import { buildEnquiryUrl } from '@/lib/enquiry';
 import { useToast } from '@/lib/toast';
 import { comparePriceOf, savingsOf } from '@/lib/pricing';
 import { productPath } from '@/lib/slug';
-import PaymentMethodPicker from '@/components/PaymentMethodPicker';
+import PaymentMethodPicker, { DetailRow } from '@/components/PaymentMethodPicker';
+import PaymentProofUpload from '@/components/PaymentProofUpload';
 import {
   DEFAULT_PAYMENT_METHOD,
+  PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
   initialPaymentStatus,
   methodById,
@@ -55,6 +63,9 @@ export default function CartDrawer() {
   const [orderRef, setOrderRef] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>(DEFAULT_PAYMENT_METHOD);
   const [paymentProof, setPaymentProof] = useState<string | null>(null);
+  // Snapshot for the confirmation screen: the cart and the form are cleared on
+  // success, so the live delivery figure is gone by the time it renders.
+  const [paidDeliveryFee, setPaidDeliveryFee] = useState(0);
 
   // Reset back to the cart view a moment after the drawer closes.
   useEffect(() => {
@@ -63,6 +74,7 @@ export default function CartDrawer() {
       setStep((s) => (s === 'done' ? 'cart' : s));
       setPaymentMethod(DEFAULT_PAYMENT_METHOD);
       setPaymentProof(null);
+      setPaidDeliveryFee(0);
     }, 400);
     return () => clearTimeout(t);
   }, [isOpen]);
@@ -90,11 +102,37 @@ export default function CartDrawer() {
     gsap.to(barRef.current, { width: `${pct}%`, duration: 0.8, ease: 'power3.out' });
   }, [subtotal, isOpen]);
 
+  // Delivery is charged in advance and depends on where the parcel is going, so
+  // it is recalculated as the customer types their city. Free-delivery orders
+  // and overseas orders come back as 0.
+  const deliveryFee = deliveryFeeFor({
+    city: form.city,
+    freeDelivery,
+    isInternational,
+  });
+  const payingForItemsUpfront = methodById(paymentMethod)?.requiresProof ?? false;
+  // The delivery charge is transferred through the wallet the shop already
+  // uses — JazzCash when it is set up, otherwise whichever manual method is.
+  const advanceMethod =
+    PAYMENT_METHODS.find((m) => m.id === 'jazzcash') ??
+    PAYMENT_METHODS.find((m) => m.requiresProof);
+  // Cash-on-delivery customers still transfer the delivery charge up front, so a
+  // screenshot is required whenever anything is owed before dispatch. With no
+  // manual method configured there is nowhere to send it, so checkout carries on
+  // as before rather than blocking on a payment that cannot be made.
+  const collectDeliveryUpfront = deliveryFee > 0 && Boolean(advanceMethod);
+  const advanceDue = payingForItemsUpfront || collectDeliveryUpfront;
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return;
-    if (methodById(paymentMethod)?.requiresProof && !paymentProof) {
-      notify('Please attach a screenshot of your payment first.', 'error');
+    if (advanceDue && !paymentProof) {
+      notify(
+        deliveryFee > 0 && !payingForItemsUpfront
+          ? 'Please attach a screenshot of your delivery charge payment first.'
+          : 'Please attach a screenshot of your payment first.',
+        'error'
+      );
       return;
     }
     setSubmitting(true);
@@ -103,9 +141,12 @@ export default function CartDrawer() {
     const itemLines = items
       .map((i) => `${i.title} x${i.qty} — ${money(i.price * i.qty)}`)
       .join('\n');
-    const deliveryNote = freeDelivery
-      ? 'FREE DELIVERY (order qualifies)'
-      : 'Delivery charges apply (order below free-delivery threshold)';
+    const deliveryNote = isInternational
+      ? 'Delivery quoted on WhatsApp (overseas order)'
+      : freeDelivery
+        ? 'FREE DELIVERY (order qualifies)'
+        : `Delivery: ${formatPkrAmount(deliveryFee)} — ${deliveryZoneLabel(form.city)}` +
+          ' (paid in advance, screenshot attached)';
     const paymentLine = `Payment: ${PAYMENT_METHOD_LABELS[paymentMethod]}${
       paymentProof ? ' — screenshot attached (see admin dashboard)' : ''
     }`;
@@ -124,7 +165,7 @@ export default function CartDrawer() {
 
     // The orders table stores one product per row, so a cart becomes one row per
     // line item, tied together by the shared order ref in `notes`.
-    const rows = items.map((i) => ({
+    const rows = items.map((i, index) => ({
       product_id: i.id,
       product_title: i.qty > 1 ? `${i.title} x${i.qty}` : i.title,
       product_price: billedPkr(i.price) * i.qty,
@@ -140,6 +181,9 @@ export default function CartDrawer() {
       payment_status: initialPaymentStatus(paymentMethod),
       payment_reference: null,
       payment_proof_path: paymentProof,
+      // One delivery per order, not per line item: the charge goes on the first
+      // row so summing the column across an order gives what was really paid.
+      delivery_fee: index === 0 ? deliveryFee : 0,
     }));
 
     const { error } = await insertOrders(rows);
@@ -152,6 +196,7 @@ export default function CartDrawer() {
     }
 
     setOrderRef(ref);
+    setPaidDeliveryFee(deliveryFee);
     setStep('done');
     notify('Order placed successfully! We will contact you shortly.', 'success');
 
@@ -161,7 +206,8 @@ export default function CartDrawer() {
         'template_krdl205',
         {
           product_title: `Cart Order — ${count} item${count > 1 ? 's' : ''} (${ref})`,
-          product_price: formatPkrAmount(billedSubtotal),
+          // Total owed, delivery included — the notes below break it down.
+          product_price: formatPkrAmount(billedSubtotal + deliveryFee),
           customer_name: form.customer_name,
           phone: form.phone,
           email: form.email,
@@ -292,6 +338,12 @@ export default function CartDrawer() {
                 <> — we will verify your transfer and confirm by phone.</>
               )}
             </p>
+            {paidDeliveryFee > 0 && (
+              <p className="mb-2 text-sm text-stone-600">
+                Delivery <span className="font-medium text-ink">{money(paidDeliveryFee)}</span> — we
+                dispatch as soon as your payment is verified.
+              </p>
+            )}
             <p className="mb-8 text-xs uppercase tracking-widest text-stone-500">
               Reference <span className="text-gold">{orderRef}</span>
             </p>
@@ -403,8 +455,14 @@ export default function CartDrawer() {
               )}
               <div className="mb-4 flex items-center justify-between text-sm text-stone-600">
                 <span>Delivery</span>
+                {/* The exact rate needs a city, so the bag quotes the range and
+                    checkout settles it once the address is known. */}
                 <span className={freeDelivery && !isInternational ? 'font-medium text-emerald-700' : 'text-stone-500'}>
-                  {isInternational ? 'Quoted on WhatsApp' : freeDelivery ? 'Free' : 'Confirmed on call'}
+                  {isInternational
+                    ? 'Quoted on WhatsApp'
+                    : freeDelivery
+                      ? 'Free'
+                      : `${formatPkrAmount(TWIN_CITY_DELIVERY_FEE)} – ${formatPkrAmount(OTHER_CITY_DELIVERY_FEE)}`}
                 </span>
               </div>
 
@@ -517,7 +575,37 @@ export default function CartDrawer() {
                   onChange={setPaymentMethod}
                   proofPath={paymentProof}
                   onProofChange={setPaymentProof}
+                  amountDue={payingForItemsUpfront ? money(subtotal + deliveryFee) : null}
                 />
+
+                {/* Paying cash for the items still leaves the delivery charge to
+                    settle up front, so it gets its own transfer and screenshot. */}
+                {collectDeliveryUpfront && !payingForItemsUpfront && advanceMethod && (
+                  <div className="mt-3 border border-gold/40 bg-gold/5 px-4 py-3.5">
+                    <p className="text-sm font-medium text-ink">
+                      Delivery charge — pay in advance
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-stone-600">
+                      Send {money(deliveryFee)} to the {advanceMethod.label} account below and
+                      attach the screenshot. Your items are still paid in cash when the parcel
+                      arrives. We dispatch as soon as the transfer is verified.
+                    </p>
+
+                    <dl className="mt-3 space-y-1.5 border-t border-gold/30 pt-3">
+                      {advanceMethod.details.map((detail) => (
+                        <DetailRow key={detail.label} detail={detail} />
+                      ))}
+                      <div className="flex items-center justify-between gap-3 border-t border-gold/30 pt-2 text-sm">
+                        <span className="text-stone-500">Amount to send</span>
+                        <span className="font-medium text-ink">{money(deliveryFee)}</span>
+                      </div>
+                    </dl>
+
+                    <div className="mt-3">
+                      <PaymentProofUpload path={paymentProof} onChange={setPaymentProof} />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Field label="Order Notes (optional)">
@@ -531,10 +619,27 @@ export default function CartDrawer() {
             </div>
 
             <div className="border-t border-stone-200 bg-white/60 px-6 py-5">
-              <div className="mb-4 flex items-center justify-between text-sm">
+              <div className="mb-1.5 flex items-center justify-between text-sm">
                 <span className="text-stone-600">Delivery</span>
-                <span className={freeDelivery ? 'font-medium text-emerald-700' : 'text-stone-500'}>
-                  {freeDelivery ? 'Free' : 'Confirmed on call'}
+                <span className={deliveryFee === 0 ? 'font-medium text-emerald-700' : 'text-ink'}>
+                  {isInternational
+                    ? 'Quoted on WhatsApp'
+                    : freeDelivery
+                      ? 'Free'
+                      : form.city.trim()
+                        ? money(deliveryFee)
+                        : 'Enter your city'}
+                </span>
+              </div>
+              {deliveryFee > 0 && (
+                <p className="mb-2 text-right text-[11px] text-stone-500">
+                  {deliveryZoneLabel(form.city)}
+                </p>
+              )}
+              <div className="mb-4 flex items-center justify-between border-t border-stone-200 pt-2.5 text-sm">
+                <span className="font-medium text-ink">Total</span>
+                <span className="text-base font-medium text-ink">
+                  {money(subtotal + deliveryFee)}
                 </span>
               </div>
               <div className="flex gap-3">

@@ -20,6 +20,7 @@ import {
   type PaymentMethodId,
   type PaymentStatus,
 } from '@/lib/payments';
+import { deliveryZoneLabel } from '@/lib/delivery';
 import {
   Package, Tags, ShoppingBag, LogOut, Plus, Pencil, Trash2, X, Upload, Eye, EyeOff, Sparkles, Ban,
 } from 'lucide-react';
@@ -748,6 +749,15 @@ function OrdersTab({
                       <div><dt className="inline text-stone-500">City: </dt><dd className="inline text-ink">{o.city}</dd></div>
                       <div><dt className="inline text-stone-500">Address: </dt><dd className="inline text-ink">{o.address}</dd></div>
                       {o.street && <div><dt className="inline text-stone-500">Street: </dt><dd className="inline text-ink">{o.street}</dd></div>}
+                      {Number(o.delivery_fee) > 0 && (
+                        <div>
+                          <dt className="inline text-stone-500">Delivery (advance): </dt>
+                          <dd className="inline text-ink">
+                            {formatPrice(Number(o.delivery_fee))}
+                            <span className="text-stone-500"> — {deliveryZoneLabel(o.city)}</span>
+                          </dd>
+                        </div>
+                      )}
                       {o.notes && <div><dt className="inline text-stone-500">Notes: </dt><dd className="inline text-ink">{o.notes}</dd></div>}
                     </dl>
                     {o.payment_proof_path && (
