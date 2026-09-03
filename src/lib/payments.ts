@@ -21,7 +21,7 @@ const ACCOUNTS = {
     iban: FILL_ME, //  e.g. 'PK00MEZN0000000000000000'
   },
   jazzcash: {
-    accountTitle: 'sannan',
+    accountTitle: 'Nazia Roshan',
     mobileNumber:'0331 5076479',
   },
   easypaisa: {
