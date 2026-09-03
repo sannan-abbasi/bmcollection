@@ -6,17 +6,20 @@ import type { Product } from '@/lib/types';
 import { comparePriceOf, discountPercentOf, formatPrice } from '@/lib/pricing';
 import { absoluteUrl, useSeo } from '@/lib/seo';
 import { looksLikeId, productPath } from '@/lib/slug';
-import PaymentMethodPicker from '@/components/PaymentMethodPicker';
+import PaymentMethodPicker, { DetailRow } from '@/components/PaymentMethodPicker';
+import PaymentProofUpload from '@/components/PaymentProofUpload';
 import {
   DEFAULT_PAYMENT_METHOD,
+  PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
   initialPaymentStatus,
   methodById,
   type PaymentMethodId,
 } from '@/lib/payments';
+import { deliveryFeeFor, deliveryZoneLabel } from '@/lib/delivery';
 import { useToast } from '@/lib/toast';
 import { useCart, FREE_DELIVERY_THRESHOLD } from '@/lib/cart';
-import { useCurrency } from '@/lib/currency';
+import { useCurrency, formatPkrAmount } from '@/lib/currency';
 import { buildEnquiryUrl } from '@/lib/enquiry';
 import { ArrowLeft, Check, MessageCircle, Minus, Plus, ShoppingCart, Sparkles, Truck } from 'lucide-react';
 import ProductReviews from '@/components/ProductReviews';
@@ -154,15 +157,52 @@ export default function ProductDetail() {
     openCart();
   };
 
+  // Buying straight from the product page is still one order going to one
+  // address, so it owes exactly what the same items would owe through the bag.
+  // The line total stands in for the cart subtotal, so the free-delivery
+  // threshold advertised on the bag and the announcement bar still applies.
+  const lineSubtotal = product ? product.price * qty : 0;
+  const freeDelivery = lineSubtotal >= FREE_DELIVERY_THRESHOLD;
+  const deliveryFee = deliveryFeeFor({
+    city: form.city,
+    freeDelivery,
+    isInternational,
+  });
+  const payingForItemsUpfront = methodById(paymentMethod)?.requiresProof ?? false;
+  // Same wallet the bag sends the advance to — JazzCash when it is set up,
+  // otherwise whichever manual method is.
+  const advanceMethod =
+    PAYMENT_METHODS.find((m) => m.id === 'jazzcash') ??
+    PAYMENT_METHODS.find((m) => m.requiresProof);
+  // Cash-on-delivery customers still transfer the delivery charge before
+  // dispatch. With no manual method configured there is nowhere to send it, so
+  // the order goes through as before rather than blocking on a payment that
+  // cannot be made.
+  const collectDeliveryUpfront = deliveryFee > 0 && Boolean(advanceMethod);
+  const advanceDue = payingForItemsUpfront || collectDeliveryUpfront;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
-    // Manual transfers must have a screenshot attached before we take the order.
-    if (methodById(paymentMethod)?.requiresProof && !paymentProof) {
-      notify('Please attach a screenshot of your payment first.', 'error');
+    // Anything owed before dispatch — the items, the delivery charge, or both
+    // — has to arrive with a screenshot before we take the order.
+    if (advanceDue && !paymentProof) {
+      notify(
+        deliveryFee > 0 && !payingForItemsUpfront
+          ? 'Please attach a screenshot of your delivery charge payment first.'
+          : 'Please attach a screenshot of your payment first.',
+        'error'
+      );
       return;
     }
     setSubmitting(true);
+
+    const deliveryNote = isInternational
+      ? 'Delivery quoted on WhatsApp (overseas order)'
+      : freeDelivery
+        ? 'FREE DELIVERY (order qualifies)'
+        : `Delivery: ${formatPkrAmount(deliveryFee)} — ${deliveryZoneLabel(form.city)}` +
+          ' (paid in advance, screenshot attached)';
 
     const orderPayload = {
       product_id: product.id,
@@ -176,6 +216,7 @@ export default function ProductDetail() {
       street: form.street || null,
       notes: [
         isInternational ? `Shown to customer in ${currencyCode}: ${money(product.price * qty)}` : null,
+        deliveryNote,
         `Payment: ${PAYMENT_METHOD_LABELS[paymentMethod]}${
           paymentProof ? ' — screenshot attached (see admin dashboard)' : ''
         }`,
@@ -188,6 +229,7 @@ export default function ProductDetail() {
       payment_status: initialPaymentStatus(paymentMethod),
       payment_reference: null,
       payment_proof_path: paymentProof,
+      delivery_fee: deliveryFee,
     };
 
     const { error } = await insertOrders([orderPayload]);
@@ -206,7 +248,8 @@ export default function ProductDetail() {
         'template_krdl205',
         {
           product_title: qty > 1 ? `${product.title} x${qty}` : product.title,
-          product_price: formatPrice(billedPkr(product.price) * qty),
+          // Total owed, delivery included — the notes below break it down.
+          product_price: formatPrice(billedPkr(product.price) * qty + deliveryFee),
           customer_name: form.customer_name,
           phone: form.phone,
           email: form.email,
@@ -214,6 +257,7 @@ export default function ProductDetail() {
           address: form.address,
           street: form.street || 'None',
           notes: [
+            deliveryNote,
             `Payment: ${PAYMENT_METHOD_LABELS[paymentMethod]}${
               paymentProof ? ' — screenshot attached (see admin dashboard)' : ''
             }`,
@@ -265,10 +309,16 @@ export default function ProductDetail() {
             Your order for <span className="font-medium text-ink">{product.title}</span> has been received.
             Our team will contact you at <span className="font-medium">{form.phone}</span> shortly to confirm details.
           </p>
-          <p className="text-stone-600 leading-relaxed mb-8">
+          <p className={`text-stone-600 leading-relaxed ${deliveryFee > 0 ? 'mb-4' : 'mb-8'}`}>
             Paying by <span className="font-medium text-ink">{PAYMENT_METHOD_LABELS[paymentMethod]}</span>
             {methodById(paymentMethod)?.requiresProof && ' — we will verify your transfer before dispatch.'}
           </p>
+          {deliveryFee > 0 && (
+            <p className="text-stone-600 leading-relaxed mb-8">
+              Delivery <span className="font-medium text-ink">{money(deliveryFee)}</span> — we
+              dispatch as soon as your payment is verified.
+            </p>
+          )}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/" className="text-sm uppercase tracking-widest border border-stone-300 px-6 py-3 hover:border-gold hover:text-gold transition-all">
               Continue Shopping
@@ -502,7 +552,41 @@ export default function ProductDetail() {
                     onChange={setPaymentMethod}
                     proofPath={paymentProof}
                     onProofChange={setPaymentProof}
+                    amountDue={
+                      payingForItemsUpfront
+                        ? money(product.price * qty + deliveryFee)
+                        : null
+                    }
                   />
+
+                  {/* Paying cash for the item still leaves the delivery charge to
+                      settle up front, so it gets its own transfer and screenshot. */}
+                  {collectDeliveryUpfront && !payingForItemsUpfront && advanceMethod && (
+                    <div className="mt-3 border border-gold/40 bg-gold/5 px-4 py-3.5">
+                      <p className="text-sm font-medium text-ink">
+                        Delivery charge — pay in advance
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-stone-600">
+                        Send {money(deliveryFee)} to the {advanceMethod.label} account below and
+                        attach the screenshot. Your item is still paid in cash when the parcel
+                        arrives. We dispatch as soon as the transfer is verified.
+                      </p>
+
+                      <dl className="mt-3 space-y-1.5 border-t border-gold/30 pt-3">
+                        {advanceMethod.details.map((detail) => (
+                          <DetailRow key={detail.label} detail={detail} />
+                        ))}
+                        <div className="flex items-center justify-between gap-3 border-t border-gold/30 pt-2 text-sm">
+                          <span className="text-stone-500">Amount to send</span>
+                          <span className="font-medium text-ink">{money(deliveryFee)}</span>
+                        </div>
+                      </dl>
+
+                      <div className="mt-3">
+                        <PaymentProofUpload path={paymentProof} onChange={setPaymentProof} />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <Field label="Order Notes (optional)">
@@ -513,6 +597,32 @@ export default function ProductDetail() {
                     className="premium-input resize-none"
                   />
                 </Field>
+
+                <div className="border-t border-stone-200 pt-4">
+                  <div className="mb-1.5 flex items-center justify-between text-sm">
+                    <span className="text-stone-600">Delivery</span>
+                    <span className={deliveryFee === 0 ? 'font-medium text-emerald-700' : 'text-ink'}>
+                      {isInternational
+                        ? 'Quoted on WhatsApp'
+                        : freeDelivery
+                          ? 'Free'
+                          : form.city.trim()
+                            ? money(deliveryFee)
+                            : 'Enter your city'}
+                    </span>
+                  </div>
+                  {deliveryFee > 0 && (
+                    <p className="mb-2 text-right text-[11px] text-stone-500">
+                      {deliveryZoneLabel(form.city)}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between border-t border-stone-200 pt-2.5 text-sm">
+                    <span className="font-medium text-ink">Total</span>
+                    <span className="text-base font-medium text-ink">
+                      {money(product.price * qty + deliveryFee)}
+                    </span>
+                  </div>
+                </div>
 
                 <div className="flex gap-4 pt-2">
                   <button
