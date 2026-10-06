@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingCart, Sparkles } from 'lucide-react';
@@ -8,9 +9,11 @@ import { useCurrency } from '@/lib/currency';
 import { comparePriceOf, discountPercentOf } from '@/lib/pricing';
 import { productPath } from '@/lib/slug';
 
-const SIZES = ['M', 'L', 'XL'] as const;
-
-export default function ProductCard({ product }: { product: Product }) {
+export default function ProductCard({
+  product,
+}: {
+  product: Product;
+}) {
   const isSoldOut = Boolean(product.is_sold_out);
 
   const { addItem } = useCart();
@@ -18,6 +21,29 @@ export default function ProductCard({ product }: { product: Product }) {
   const { format } = useCurrency();
 
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+
+  /*
+   * Sizes are configured per product from the admin dashboard.
+   *
+   * Examples:
+   * ["S", "M", "L"]
+   * ["M", "L", "XL"]
+   * ["28", "30", "32", "34"]
+   * ["Free Size"]
+   * []
+   *
+   * Any number of sizes can be added.
+   */
+  const sizes = Array.isArray(product.sizes)
+    ? product.sizes
+        .filter(
+          (size): size is string =>
+            typeof size === 'string' && size.trim().length > 0
+        )
+        .map((size) => size.trim())
+    : [];
+
+  const hasSizes = sizes.length > 0;
 
   const wasPrice = comparePriceOf(
     product.price,
@@ -39,7 +65,9 @@ export default function ProductCard({ product }: { product: Product }) {
     setSelectedSize(size);
   };
 
-  const handleAdd = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleAdd = (
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -47,18 +75,20 @@ export default function ProductCard({ product }: { product: Product }) {
       return;
     }
 
-    if (!selectedSize) {
+    if (hasSizes && !selectedSize) {
       notify('Please select a size first', 'error');
       return;
     }
 
     addItem(product, {
-      size: selectedSize,
+      size: hasSizes ? selectedSize : null,
       qty: 1,
     });
 
     notify(
-      `${product.title} (${selectedSize}) added to your bag`,
+      hasSizes && selectedSize
+        ? `${product.title} (${selectedSize}) added to your bag`
+        : `${product.title} added to your bag`,
       'success'
     );
 
@@ -70,8 +100,8 @@ export default function ProductCard({ product }: { product: Product }) {
       to={productPath(product)}
       className="group block"
     >
+      {/* Product Image */}
       <div className="image-zoom relative aspect-[3/4] overflow-hidden rounded-lg bg-stone-100 premium-shadow">
-        {/* Product Image */}
         {product.image_url ? (
           <img
             src={product.image_url}
@@ -115,36 +145,6 @@ export default function ProductCard({ product }: { product: Product }) {
 
         {!isSoldOut && (
           <>
-            {/* Size Selector */}
-            <div
-              className="absolute inset-x-3 bottom-16 flex items-center justify-center gap-2"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-            >
-              {SIZES.map((size) => {
-                const isSelected = selectedSize === size;
-
-                return (
-                  <button
-                    key={size}
-                    type="button"
-                    onClick={(e) => handleSizeSelect(e, size)}
-                    aria-label={`Select size ${size}`}
-                    aria-pressed={isSelected}
-                    className={`flex h-9 min-w-9 items-center justify-center rounded-full px-2.5 text-[10px] font-medium uppercase tracking-wide transition-all duration-200 ${
-                      isSelected
-                        ? 'bg-gold text-cream shadow-md scale-105'
-                        : 'bg-cream/95 text-ink hover:bg-gold hover:text-cream hover:scale-105'
-                    }`}
-                  >
-                    {size}
-                  </button>
-                );
-              })}
-            </div>
-
             {/* Mobile Add Button */}
             <button
               type="button"
@@ -171,6 +171,7 @@ export default function ProductCard({ product }: { product: Product }) {
 
       {/* Product Information */}
       <div className="mt-3 text-center sm:mt-4">
+        {/* Product Name */}
         <h3 className="font-serif text-base leading-snug text-ink transition-colors duration-300 group-hover:text-gold sm:text-lg">
           {product.title}
         </h3>
@@ -180,19 +181,57 @@ export default function ProductCard({ product }: { product: Product }) {
             Sold Out
           </p>
         ) : (
-          <div className="mt-1 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5">
-            <span className="text-sm font-medium text-ink">
-              {format(product.price)}
-            </span>
-
-            {wasPrice !== null && (
-              <span className="text-xs text-stone-400 line-through">
-                {format(wasPrice)}
+          <>
+            {/* Price */}
+            <div className="mt-1 flex flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5">
+              <span className="text-sm font-medium text-ink">
+                {format(product.price)}
               </span>
+
+              {wasPrice !== null && (
+                <span className="text-xs text-stone-400 line-through">
+                  {format(wasPrice)}
+                </span>
+              )}
+            </div>
+
+            {/* Sizes - shown BELOW price */}
+            {hasSizes && (
+              <div
+                className="mt-2 flex flex-wrap items-center justify-center gap-1.5"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                {sizes.map((size) => {
+                  const isSelected = selectedSize === size;
+
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={(e) =>
+                        handleSizeSelect(e, size)
+                      }
+                      aria-label={`Select size ${size}`}
+                      aria-pressed={isSelected}
+                      className={`min-w-8 rounded-md border px-2 py-1 text-[10px] font-medium uppercase tracking-wide transition-all duration-200 ${
+                        isSelected
+                          ? 'border-gold bg-gold text-cream'
+                          : 'border-stone-300 bg-transparent text-stone-600 hover:border-gold hover:text-gold'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  );
+                })}
+              </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </Link>
   );
 }
+

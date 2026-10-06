@@ -459,6 +459,38 @@ export default function Home() {
         </div>
       </section>
 
+      {/* =================================================== NEW ARRIVALS */}
+      <section className="bg-stone-50 px-6 py-24">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-12 flex flex-col justify-between md:flex-row md:items-end">
+            <div>
+              <p className="reveal mb-3 text-xs uppercase tracking-[0.3em] text-gold">Just In</p>
+              <h2 className="reveal-title font-serif text-4xl text-ink md:text-5xl">New Arrivals</h2>
+            </div>
+            <Link
+              to="/new-arrivals"
+              className="reveal group mt-4 flex items-center gap-2 text-sm uppercase tracking-widest text-ink transition-colors hover:text-gold md:mt-0"
+            >
+              View All <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
+
+          {loading ? (
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="skeleton aspect-[3/4] rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <div className="reveal-group grid grid-cols-2 gap-8 md:grid-cols-4">
+              {featured.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* ========================================================= MARQUEE */}
       <div ref={marqueeRef} className="overflow-hidden border-y border-gold/20 bg-ink py-4 md:py-5">
         <div className="marquee-skew">
@@ -490,38 +522,6 @@ export default function Home() {
               <CategoryCard key={cat.id} category={cat} allowMotion={allowMotion} />
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* =================================================== NEW ARRIVALS */}
-      <section className="bg-stone-50 px-6 py-24">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12 flex flex-col justify-between md:flex-row md:items-end">
-            <div>
-              <p className="reveal mb-3 text-xs uppercase tracking-[0.3em] text-gold">Just In</p>
-              <h2 className="reveal-title font-serif text-4xl text-ink md:text-5xl">New Arrivals</h2>
-            </div>
-            <Link
-              to="/new-arrivals"
-              className="reveal group mt-4 flex items-center gap-2 text-sm uppercase tracking-widest text-ink transition-colors hover:text-gold md:mt-0"
-            >
-              View All <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Link>
-          </div>
-
-          {loading ? (
-            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="skeleton aspect-[3/4] rounded-lg" />
-              ))}
-            </div>
-          ) : (
-            <div className="reveal-group grid grid-cols-2 gap-8 md:grid-cols-4">
-              {featured.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
-          )}
         </div>
       </section>
 

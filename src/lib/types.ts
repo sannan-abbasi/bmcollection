@@ -13,15 +13,28 @@ export interface Product {
   id: string;
   category_id: string | null;
   title: string;
+
   /** URL slug, e.g. 'royalty-in-purple-heart-pendant-piece'. */
   slug?: string | null;
+
   description: string | null;
   price: number;
+
   /** Optional struck-through "was" price, set per product in the admin. */
   compare_at_price?: number | null;
+
   image_url: string | null;
   is_new_arrival: boolean;
   is_sold_out?: boolean; // Added for the admin sold-out toggle
+
+  /**
+   * Available sizes for this specific product.
+   * Examples: ['S', 'M', 'L', 'XL'], ['M', 'L', 'XL'],
+   * ['Free Size'], or ['28', '30', '32', '34'].
+   * An empty array or null means the product has no size options.
+   */
+  sizes?: string[] | null;
+
   is_active: boolean;
   created_at: string;
 }
@@ -39,19 +52,28 @@ export interface Order {
   street: string | null;
   notes: string | null;
   status: string;
+
   payment_method?: string; // cod | bank | jazzcash | easypaisa
   payment_status?: string; // unpaid | awaiting_verification | paid
   payment_reference?: string | null;
   payment_proof_path?: string | null;
+
   /**
-   * Advance delivery charge in rupees. A cart is stored as one row per line
-   * item and the fee is written on the first row only, so it is 0 on the rest.
+   * Advance delivery charge in rupees.
+   * A cart is stored as one row per line item, and the fee is written
+   * on the first row only, so it is 0 on the rest.
    */
   delivery_fee?: number;
+
   created_at: string;
 }
 
-export type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'Pending',
