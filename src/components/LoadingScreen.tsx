@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 
 export default function LoadingScreen() {
@@ -10,6 +9,7 @@ export default function LoadingScreen() {
     let startTime: number;
     let animationFrame: number;
 
+    // Total loading animation time
     const duration = 3400;
 
     const animate = (time: number) => {
@@ -18,7 +18,7 @@ export default function LoadingScreen() {
       const elapsed = time - startTime;
       const percentage = Math.min(elapsed / duration, 1);
 
-      // Smooth, elegant easing
+      // Smooth luxury-style easing
       const eased = 1 - Math.pow(1 - percentage, 3);
 
       setProgress(Math.round(eased * 100));
@@ -30,10 +30,12 @@ export default function LoadingScreen() {
 
     animationFrame = requestAnimationFrame(animate);
 
+    // Start exit animation
     const exitTimer = window.setTimeout(() => {
       setExiting(true);
     }, 3900);
 
+    // Completely remove loader
     const hideTimer = window.setTimeout(() => {
       setVisible(false);
     }, 4800);
@@ -50,14 +52,16 @@ export default function LoadingScreen() {
   return (
     <div
       className={`fixed inset-0 z-[9999] overflow-hidden bg-[#F4EFE7] transition-opacity duration-[900ms] ease-out ${
-        exiting ? 'pointer-events-none opacity-0' : 'opacity-100'
+        exiting
+          ? 'pointer-events-none opacity-0'
+          : 'opacity-100'
       }`}
     >
-      {/* =========================
+      {/* =====================================================
           BACKGROUND
-      ========================== */}
+      ====================================================== */}
 
-      {/* Large burgundy ambient shape */}
+      {/* Burgundy ambient circle */}
       <div
         className={`pointer-events-none absolute -right-[180px] -top-[180px] h-[520px] w-[520px] rounded-full bg-[#6E2634]/[0.055] blur-[2px] transition-transform duration-[2500ms] ${
           exiting ? 'scale-125' : 'scale-100'
@@ -67,19 +71,30 @@ export default function LoadingScreen() {
       {/* Champagne glow */}
       <div
         className={`pointer-events-none absolute -bottom-[220px] -left-[180px] h-[520px] w-[520px] rounded-full bg-[#B49462]/[0.10] blur-[80px] transition-all duration-[2500ms] ${
-          exiting ? 'scale-125 opacity-0' : 'scale-100 opacity-100'
+          exiting
+            ? 'scale-125 opacity-0'
+            : 'scale-100 opacity-100'
         }`}
       />
 
-      {/* Editorial frame */}
+      {/* Very subtle center glow */}
+      <div
+        className={`pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#FFFFFF]/30 blur-[100px] transition-opacity duration-[2000ms] ${
+          exiting ? 'opacity-0' : 'opacity-100'
+        }`}
+      />
+
+      {/* =====================================================
+          EDITORIAL FRAME
+      ====================================================== */}
+
       <div className="pointer-events-none absolute inset-5 border border-[#CFC2B0] sm:inset-8" />
 
-      {/* Inner subtle frame */}
       <div className="pointer-events-none absolute inset-7 border border-[#FFFFFF]/60 sm:inset-11" />
 
-      {/* =========================
+      {/* =====================================================
           TOP LEFT
-      ========================== */}
+      ====================================================== */}
 
       <div
         className={`absolute left-10 top-10 transition-all duration-1000 sm:left-14 sm:top-14 ${
@@ -97,9 +112,9 @@ export default function LoadingScreen() {
         </div>
       </div>
 
-      {/* =========================
+      {/* =====================================================
           TOP RIGHT
-      ========================== */}
+      ====================================================== */}
 
       <div
         className={`absolute right-10 top-10 transition-all delay-100 duration-1000 sm:right-14 sm:top-14 ${
@@ -113,9 +128,9 @@ export default function LoadingScreen() {
         </span>
       </div>
 
-      {/* =========================
+      {/* =====================================================
           CENTER
-      ========================== */}
+      ====================================================== */}
 
       <div className="flex h-full items-center justify-center px-8">
         <div className="relative flex w-full max-w-md flex-col items-center text-center">
@@ -129,7 +144,10 @@ export default function LoadingScreen() {
             }`}
           />
 
-          {/* Welcome */}
+          {/* =================================================
+              WELCOME
+          ================================================= */}
+
           <div
             className={`mb-7 transition-all duration-[1200ms] ${
               exiting
@@ -142,9 +160,9 @@ export default function LoadingScreen() {
             </p>
           </div>
 
-          {/* =========================
-              MONOGRAM
-          ========================== */}
+          {/* =================================================
+              IMAGE MONOGRAM
+          ================================================= */}
 
           <div
             className={`relative transition-all duration-[1500ms] ease-out ${
@@ -153,34 +171,60 @@ export default function LoadingScreen() {
                 : 'scale-100 translate-y-0 opacity-100'
             }`}
           >
-            {/* Burgundy background circle */}
-            <div className="absolute left-1/2 top-1/2 h-[145px] w-[145px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#6E2634] sm:h-[165px] sm:w-[165px]" />
+            {/* Outer champagne ring */}
+            <div className="absolute left-1/2 top-1/2 h-[188px] w-[188px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#B49462]/80 sm:h-[214px] sm:w-[214px]" />
 
-            {/* Champagne ring */}
-            <div className="absolute left-1/2 top-1/2 h-[164px] w-[164px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#B49462]/60 sm:h-[188px] sm:w-[188px]" />
+            {/* Inner fine ring */}
+            <div className="absolute left-1/2 top-1/2 h-[174px] w-[174px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#FFFFFF]/70 sm:h-[198px] sm:w-[198px]" />
 
-            {/* Monogram */}
-            <div className="relative z-10 flex h-[150px] w-[150px] items-center justify-center font-serif text-[70px] leading-none tracking-[-0.1em] text-[#F4EFE7] sm:h-[170px] sm:w-[170px] sm:text-[80px]">
-              <span>B</span>
-              <span className="-ml-2">M</span>
+            {/* Image container */}
+            <div className="relative h-[158px] w-[158px] overflow-hidden rounded-full bg-[#6E2634] shadow-[0_15px_45px_rgba(48,41,37,0.15)] sm:h-[180px] sm:w-[180px]">
+
+              {/* Fashion image */}
+              <img
+                src="/images/loading-fashion.jpg"
+                alt="BM Collections"
+                className="h-full w-full object-cover object-center"
+              />
+
+              {/* Burgundy luxury tint */}
+              <div className="absolute inset-0 bg-[#6E2634]/15 mix-blend-multiply" />
+
+              {/* Warm highlight */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-[#6E2634]/30 via-transparent to-[#F4EFE7]/10" />
+
+              {/* Soft cinematic shine */}
+              <div
+                className={`absolute inset-y-0 -left-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-all duration-[1800ms] ${
+                  progress > 15 ? 'left-[150%]' : ''
+                }`}
+              />
+            </div>
+
+            {/* Small BM badge */}
+            <div className="absolute -bottom-2 left-1/2 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full border border-[#B49462] bg-[#F4EFE7] shadow-sm">
+              <span className="font-serif text-[9px] tracking-[-0.08em] text-[#6E2634]">
+                BM
+              </span>
             </div>
           </div>
 
-          {/* =========================
+          {/* =================================================
               BRAND NAME
-          ========================== */}
+          ================================================= */}
 
           <div
-            className={`mt-8 transition-all delay-200 duration-[1200ms] ${
+            className={`mt-10 transition-all delay-200 duration-[1200ms] ${
               exiting
                 ? 'translate-y-5 opacity-0'
                 : 'translate-y-0 opacity-100'
             }`}
           >
-            <h1 className="font-serif text-[19px] uppercase tracking-[0.38em] text-[#302925]">
+            <h1 className="font-serif text-[19px] uppercase tracking-[0.38em] text-[#302925] sm:text-[21px]">
               BM Collections
             </h1>
 
+            {/* Decorative divider */}
             <div className="mx-auto mt-4 flex items-center justify-center gap-3">
               <span className="h-px w-10 bg-[#B49462]" />
 
@@ -194,12 +238,12 @@ export default function LoadingScreen() {
             </p>
           </div>
 
-          {/* =========================
+          {/* =================================================
               PROGRESS
-          ========================== */}
+          ================================================= */}
 
           <div
-            className={`mt-14 w-56 transition-all delay-300 duration-[1000ms] ${
+            className={`mt-14 w-56 transition-all delay-300 duration-[1000ms] sm:w-64 ${
               exiting
                 ? 'translate-y-4 opacity-0'
                 : 'translate-y-0 opacity-100'
@@ -215,7 +259,9 @@ export default function LoadingScreen() {
               </span>
             </div>
 
+            {/* Progress track */}
             <div className="relative h-[2px] w-full overflow-hidden bg-[#D8CCBC]">
+              {/* Burgundy progress */}
               <div
                 className="absolute left-0 top-0 h-full bg-[#6E2634] transition-[width] duration-100 ease-linear"
                 style={{
@@ -235,9 +281,9 @@ export default function LoadingScreen() {
         </div>
       </div>
 
-      {/* =========================
+      {/* =====================================================
           BOTTOM LEFT
-      ========================== */}
+      ====================================================== */}
 
       <div
         className={`absolute bottom-10 left-10 transition-all duration-1000 sm:bottom-14 sm:left-14 ${
@@ -251,9 +297,9 @@ export default function LoadingScreen() {
         </span>
       </div>
 
-      {/* =========================
+      {/* =====================================================
           BOTTOM RIGHT
-      ========================== */}
+      ====================================================== */}
 
       <div
         className={`absolute bottom-10 right-10 transition-all duration-1000 sm:bottom-14 sm:right-14 ${
@@ -266,7 +312,18 @@ export default function LoadingScreen() {
           B / M
         </span>
       </div>
+
+      {/* =====================================================
+          CORNER DETAILS
+      ====================================================== */}
+
+      <div className="pointer-events-none absolute left-5 top-5 h-5 w-5 border-l border-t border-[#9A7650]/50 sm:left-8 sm:top-8" />
+
+      <div className="pointer-events-none absolute right-5 top-5 h-5 w-5 border-r border-t border-[#9A7650]/50 sm:right-8 sm:top-8" />
+
+      <div className="pointer-events-none absolute bottom-5 left-5 h-5 w-5 border-b border-l border-[#9A7650]/50 sm:bottom-8 sm:left-8" />
+
+      <div className="pointer-events-none absolute bottom-5 right-5 h-5 w-5 border-b border-r border-[#9A7650]/50 sm:bottom-8 sm:right-8" />
     </div>
   );
 }
-
